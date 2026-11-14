@@ -29,8 +29,6 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
   UpPanelPosition get upPanelPosition => _dynamicsController.upPanelPosition;
   late final MainController _mainController = Get.find<MainController>();
 
-  /// UP 头像栏的收起偏移：0 = 完全展开，_upBarHeight = 完全收起
-  final _upBarOffset = 0.0.obs;
   static const double _upBarHeight = 76;
 
   @override
@@ -122,35 +120,13 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
     );
   }
 
-  /// 内容上滑时收起头像栏，下滑或回到顶部时展开
-  bool _onUpBarScroll(ScrollNotification notification) {
-    // 横向分页自己滚动，不参与收起
-    if (notification.metrics.axis != .vertical) return false;
-    if (notification is ScrollUpdateNotification) {
-      final delta = notification.scrollDelta;
-      if (delta != null && delta != 0 && notification.dragDetails != null) {
-        _upBarOffset.value = (_upBarOffset.value + delta).clamp(
-          0.0,
-          _upBarHeight,
-        );
-      }
-    } else if (notification is OverscrollNotification) {
-      _upBarOffset.value = (_upBarOffset.value + notification.overscroll)
-          .clamp(0.0, _upBarHeight);
-    } else if (notification is ScrollEndNotification ||
-        notification is ScrollStartNotification) {
-      // 到顶一定展开
-      if (notification.metrics.extentBefore == 0) {
-        _upBarOffset.value = 0;
-      }
-    }
-    return false;
-  }
-
-  Widget _collapsibleUpBar(ColorScheme colorScheme) {
-    // 头像栏内容只构建一次：收起过程中只改外层高度，不再逐帧重建整条
-    // UP 头像列表（之前每个滚动 delta 都会把 50+ 个头像重建一遍，掉帧很明显）
-    final bar = RepaintBoundary(
+  /// 吸顶的 UP 头像栏
+  ///
+  /// 对齐官方动态页：头像栏固定不动，滚动时不收起。
+  /// 之前那套「随滚动收起」每帧都在改列表可用高度，整页反复重新布局，
+  /// 加上头像列表跟着重建，就成了滑动发涩的主因。
+  Widget _pinnedUpBar(ColorScheme colorScheme) {
+    return RepaintBoundary(
       child: Material(
         type: .canvas,
         color: colorScheme.surface,
@@ -161,21 +137,6 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
         ),
       ),
     );
-    return Obx(() {
-      final offset = _upBarOffset.value.clamp(0.0, _upBarHeight);
-      if (offset >= _upBarHeight) return const SizedBox.shrink();
-      return ClipRect(
-        child: SizedBox(
-          height: _upBarHeight - offset,
-          child: OverflowBox(
-            alignment: Alignment.topCenter,
-            minHeight: _upBarHeight,
-            maxHeight: _upBarHeight,
-            child: bar,
-          ),
-        ),
-      );
-    });
   }
 
   /// 「只保留 UP 主栏」布局：头像栏吸顶 + 当前 UP 的动态流
@@ -184,15 +145,12 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
       primary: false,
       resizeToAvoidBottomInset: false,
       backgroundColor: Colors.transparent,
-      body: NotificationListener<ScrollNotification>(
-        onNotification: _onUpBarScroll,
-        child: onBuild(
-          Column(
-            children: [
-              _collapsibleUpBar(colorScheme),
-              const Expanded(child: DynUpPageView()),
-            ],
-          ),
+      body: onBuild(
+        Column(
+          children: [
+            _pinnedUpBar(colorScheme),
+            const Expanded(child: DynUpPageView()),
+          ],
         ),
       ),
     );
