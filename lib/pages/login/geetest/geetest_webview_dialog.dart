@@ -1,3 +1,4 @@
+import 'dart:async' show Timer;
 import 'dart:convert' show jsonDecode;
 import 'dart:io' show Platform;
 
@@ -30,27 +31,94 @@ class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
       'https://static.geetest.com/static/js/fullpage.0.0.0.js';
   static const _geetestConfigUri = 'https://api.geetest.com/gettype.php';
 
+  /// 极验要求页面有真实的 https 源，否则拿不到域名/存储，只出白屏
+  static const _geetestHost = 'https://www.bilibili.com/';
+
+  /// 加载超时时间：宁可提示重试，也不要让用户干瞪着空白页
+  static const _loadTimeout = Duration(seconds: 15);
+
+  Timer? _timer;
+
+  /// 已经拿到结果或已关闭，超时就不再打扰
+  bool _finished = false;
+
+  /// 加载失败的提示文案，null 表示正常加载中
+  String? _error;
+
+  /// 重试计数，用来重建 WebView
+  int _attempt = 0;
+
   static String _buildHtml(String gt, String challenge) {
     final ts = DateTime.now().millisecondsSinceEpoch;
     final js =
         'var C,S,T,t;'
-        'T=()=>{if(C&&S&&!t){t=Geetest(C).onSuccess(()=>R("success",t.getValidate())).onError(o=>R("error",o)).onClose(o=>R("close",o));t.onReady(()=>t.verify())}};'
+        'T=()=>{if(C&&S&&!t){'
+        'var l=document.getElementById("L");if(l){l.style.display="none"}'
+        't=Geetest(C).onSuccess(()=>R("success",t.getValidate())).onError(o=>R("error",o)).onClose(o=>R("close",o));'
+        't.onReady(()=>t.verify())}};'
         'geetest_$ts=(d)=>{'
         'if(!d||d.status!="success"){R("error",JSON.stringify(d));return};'
         'C=Object.assign({gt:"$gt",challenge:"$challenge",offline:false,new_captcha:true,product:"bind",width:"100%",https:true,protocol:"https://"},d.data);T()'
         '};'
         'G=()=>{S=1;T()};'
-        'E=()=>{document.getElementById("E").textContent="验证码加载失败";R("error","geetest script load failed")}';
+        'E=(m)=>{var e=document.getElementById("E");if(e){e.textContent="验证码加载失败";e.style.display="flex"}'
+        'var l=document.getElementById("L");if(l){l.style.display="none"}'
+        'R("error",typeof m=="string"?m:"geetest script load failed")}';
 
-    return '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"></head>'
-        '<style>#E{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:red}</style>'
-        '<body><div id="E"></div>'
+    return '<!DOCTYPE html><html><head>'
+        '<meta name="viewport" content="width=device-width">'
+        '<meta name="color-scheme" content="light dark">'
+        '</head>'
+        '<style>'
+        'html,body{margin:0;padding:0;background:transparent}'
+        '#L{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:14px sans-serif;opacity:.6}'
+        '#E{position:fixed;inset:0;display:none;align-items:center;justify-content:center;color:#f44336;font:14px sans-serif}'
+        '</style>'
+        '<body><div id="L">正在加载验证码…</div><div id="E"></div>'
         '<script>'
         '${Platform.isLinux ? "R=(n,o)=>window.PiliPlus.postMessage(n+':'+JSON.stringify(o))" : "R=(n,o)=>window.flutter_inappwebview?.callHandler(n,o)"};$js'
         '</script>'
-        '<script src="$_geetestJsUri" onload="G()" onerror="E()"></script>'
-        '<script src="$_geetestConfigUri?gt=$gt&callback=geetest_$ts" onerror="E()"></script>'
+        '<script src="$_geetestJsUri" onload="G()" onerror="E(\'极验脚本加载失败\')"></script>'
+        '<script src="$_geetestConfigUri?gt=$gt&callback=geetest_$ts" onerror="E(\'极验配置请求失败\')"></script>'
         '</body></html>';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (!Platform.isLinux) _armTimeout();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _armTimeout() {
+    _timer?.cancel();
+    if (_error != null) return;
+    _timer = Timer(_loadTimeout, () {
+      if (!mounted || _finished) return;
+      setState(() => _error = '验证码加载超时，检查网络后重试，或改用扫码登录');
+    });
+  }
+
+  void _retry() {
+    _timer?.cancel();
+    setState(() {
+      _error = null;
+      _attempt++;
+    });
+    _armTimeout();
+  }
+
+  void _fail(String reason) {
+    debugPrint('geetest error: $reason');
+    if (!mounted || _finished || _error != null) return;
+    _timer?.cancel();
+    // 极验脚本自己会先显示失败文案，这里同步给 Dart 侧兜底
+    setState(() => _error = '验证码加载失败，请重试或改用扫码登录');
   }
 
   @override
@@ -88,16 +156,19 @@ class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
       );
     }
 
+    final theme = Theme.of(context);
     return Stack(
       children: [
         InAppWebView(
+          key: ValueKey(_attempt),
           webViewEnvironment: webViewEnvironment,
           initialSettings: InAppWebViewSettings(
-            clearCache: true,
+            clearCache: false,
             javaScriptEnabled: true,
-            forceDark: ForceDark.AUTO,
+            // 强制暗色会把极验的白底页面反色成一片空白，必须关掉
+            forceDark: ForceDark.OFF,
             useHybridComposition: true,
-            algorithmicDarkeningAllowed: true,
+            algorithmicDarkeningAllowed: false,
             useShouldOverrideUrlLoading: true,
             userAgent: BrowserUa.mob,
             mixedContentMode: .MIXED_CONTENT_ALWAYS_ALLOW,
@@ -108,15 +179,16 @@ class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
             allowContentAccess: false,
             useOnDownloadStart: false,
             geolocationEnabled: false,
-            thirdPartyCookiesEnabled: false,
+            // 极验脚本要写 localStorage / cookie 才能渲染出滑块
+            domStorageEnabled: true,
+            databaseEnabled: true,
+            thirdPartyCookiesEnabled: true,
             enterpriseAuthenticationAppLinkPolicyEnabled: false,
             saveFormData: false,
             safeBrowsingEnabled: false,
             isFraudulentWebsiteWarningEnabled: false,
-            domStorageEnabled: false,
-            databaseEnabled: false,
-            cacheEnabled: false,
-            cacheMode: .LOAD_NO_CACHE,
+            cacheEnabled: true,
+            cacheMode: .LOAD_DEFAULT,
 
             horizontalScrollBarEnabled: false,
             verticalScrollBarEnabled: false,
@@ -124,7 +196,10 @@ class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
 
             pageZoom: Platform.isIOS ? 3 : 1,
           ),
-          initialData: InAppWebViewInitialData(data: html),
+          initialData: InAppWebViewInitialData(
+            data: html,
+            baseUrl: WebUri(_geetestHost),
+          ),
           onWebViewCreated: (ctr) {
             ctr
               ..addJavaScriptHandler(
@@ -132,31 +207,76 @@ class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
                 callback: (args) {
                   if (args.isNotEmpty) {
                     if (args[0] case Map<String, dynamic> data) {
+                      _finished = true;
+                      _timer?.cancel();
                       Get.back(result: data);
                       return;
                     }
                   }
-                  debugPrint('geetest invalid result: $args');
+                  _fail('invalid result: $args');
                 },
               )
               ..addJavaScriptHandler(
                 handlerName: 'error',
                 callback: (args) {
-                  debugPrint('geetest error: $args');
+                  _fail(args.isEmpty ? 'unknown' : '${args[0]}');
                 },
               )
               ..addJavaScriptHandler(
                 handlerName: 'close',
-                callback: (args) => Get.back(),
+                callback: (args) {
+                  _finished = true;
+                  _timer?.cancel();
+                  Get.back();
+                },
               );
           },
         ),
+        if (_error != null)
+          Positioned.fill(
+            child: ColoredBox(
+              color: theme.colorScheme.surface,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Column(
+                    mainAxisSize: .min,
+                    spacing: 12,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 32,
+                        color: theme.colorScheme.error,
+                      ),
+                      Text(
+                        _error!,
+                        textAlign: .center,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      FilledButton.tonal(
+                        onPressed: _retry,
+                        child: const Text('重试'),
+                      ),
+                      TextButton(
+                        onPressed: Get.back,
+                        child: const Text('关闭，改用扫码登录'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         Positioned(
           left: 8,
           top: 8,
           child: IconButton(
             icon: const Icon(Icons.close),
-            onPressed: Get.back,
+            onPressed: () {
+              _finished = true;
+              _timer?.cancel();
+              Get.back();
+            },
             tooltip: '关闭',
           ),
         ),

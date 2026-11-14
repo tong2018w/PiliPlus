@@ -36,25 +36,25 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
   @override
   bool get wantKeepAlive => true;
 
+  /// 发布按钮：去掉原来的实心色块，改成和头像栏同一视觉层级的轻量图标，
+  /// 只保留 36 的点击热区，避免那个 34px 的彩色圆点在头像栏里过于扎眼
   Widget _createDynamicBtn(ColorScheme colorScheme, {bool isRight = true}) =>
-      Container(
-        width: 34,
-        height: 34,
-        margin: isRight ? const .only(right: 16) : const .only(left: 16),
+      Padding(
+        padding: isRight ? const .only(right: 4) : const .only(left: 4),
         child: IconButton(
           tooltip: '发布动态',
           style: ButtonStyle(
             padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-            backgroundColor: WidgetStatePropertyAll(
-              colorScheme.secondaryContainer,
+            backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+            minimumSize: const WidgetStatePropertyAll(Size.square(36)),
+            maximumSize: const WidgetStatePropertyAll(Size.square(36)),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            overlayColor: WidgetStatePropertyAll(
+              colorScheme.onSurface.withValues(alpha: 0.08),
             ),
           ),
           onPressed: () => CreateDynPanel.onCreateDyn(context),
-          icon: Icon(
-            Icons.add,
-            size: 18,
-            color: colorScheme.onSecondaryContainer,
-          ),
+          icon: Icon(Icons.add, size: 20, color: colorScheme.onSurfaceVariant),
         ),
       );
 
@@ -148,10 +148,10 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
   }
 
   Widget _collapsibleUpBar(ColorScheme colorScheme) {
-    return Obx(() {
-      final progress = (_upBarOffset.value / _upBarHeight).clamp(0.0, 1.0);
-      if (progress >= 1) return const SizedBox.shrink();
-      final material = Material(
+    // 头像栏内容只构建一次：收起过程中只改外层高度，不再逐帧重建整条
+    // UP 头像列表（之前每个滚动 delta 都会把 50+ 个头像重建一遍，掉帧很明显）
+    final bar = RepaintBoundary(
+      child: Material(
         type: .canvas,
         color: colorScheme.surface,
         child: SizedBox(
@@ -159,15 +159,19 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
           height: _upBarHeight,
           child: _upBar(colorScheme),
         ),
-      );
+      ),
+    );
+    return Obx(() {
+      final offset = _upBarOffset.value.clamp(0.0, _upBarHeight);
+      if (offset >= _upBarHeight) return const SizedBox.shrink();
       return ClipRect(
         child: SizedBox(
-          height: _upBarHeight * (1 - progress),
+          height: _upBarHeight - offset,
           child: OverflowBox(
             alignment: Alignment.topCenter,
             minHeight: _upBarHeight,
             maxHeight: _upBarHeight,
-            child: material,
+            child: bar,
           ),
         ),
       );

@@ -209,7 +209,9 @@ abstract final class Pref {
   static DynSwipeSensitivity get dynSwipeSensitivity =>
       DynSwipeSensitivity.values[_setting.get(
         SettingBoxKey.dynSwipeSensitivity,
-        defaultValue: DynSwipeSensitivity.standard.index,
+        // 默认给「灵敏」：官方 bilibili 的横滑更跟手，
+        // 标准档要额外 6px 位移才认，滑起来会觉得发钝
+        defaultValue: DynSwipeSensitivity.loose.index,
       )];
 
   /// 动态页只保留 UP 主栏（去掉 全部/投稿/番剧/专栏 分类）

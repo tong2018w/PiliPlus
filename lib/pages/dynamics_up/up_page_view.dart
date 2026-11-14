@@ -1,4 +1,4 @@
-import 'dart:async' show unawaited;
+import 'dart:async' show Timer, unawaited;
 
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show dynPageView;
 import 'package:PiliPlus/http/loading_state.dart';
@@ -31,19 +31,33 @@ class _DynUpPageViewState extends State<DynUpPageView>
   /// 当前参与分页的 UP：第 0 项固定是「全部动态」
   List<int> mids = const [-1];
 
+  /// UP 列表刷新后重建分页（只在数据真的变化时触发，不再每帧轮询）
+  late final Worker _loadingWorker;
+
+  /// 头像栏跟随滚动的防抖计时器，避免和手指抢滚动
+  Timer? _barScrollTimer;
+
   @override
   bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    pageController = PageController(initialPage: _indexOf(dynamicsController.currentMid));
+    pageController = PageController(
+      initialPage: _indexOf(dynamicsController.currentMid),
+    );
     _register();
     syncUpList();
+    _loadingWorker = ever<LoadingState<FollowUpModel>>(
+      dynamicsController.loadingState,
+      (_) => syncUpList(),
+    );
   }
 
   @override
   void dispose() {
+    _barScrollTimer?.cancel();
+    _loadingWorker.dispose();
     // 同一时刻只存在一个分页容器，直接清空钩子；
     // 不要用 identical() 比较方法 tear-off，那个比较不可靠。
     dynamicsController
@@ -86,22 +100,32 @@ class _DynUpPageViewState extends State<DynUpPageView>
   void toTop() => _currentFeed?.animateToTop();
 
   /// 横滑换 UP 后，把头像栏滚到该 UP 附近，保证高亮可见
+  ///
+  /// 用防抖延迟：PageView 的 onPageChanged 在手指还没抬起时就会触发，
+  /// 立刻改成动画会跟用户的手势抢滚动，等翻页稳定后再滚。
   void _scrollUpBarTo(int? mid) {
     if (mid == null) return;
-    final index = mids.indexOf(mid);
-    if (index < 0) return;
-    final sc = dynamicsController.scrollController;
-    if (!sc.hasClients) return;
-    // 头像条目宽 70，留出左侧边距
-    final target = ((index - 1) * 70.0).clamp(0.0, sc.position.maxScrollExtent);
-    if ((sc.offset - target).abs() < 40) return;
-    unawaited(
-      sc.animateTo(
-        target,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-      ),
-    );
+    _barScrollTimer?.cancel();
+    _barScrollTimer = Timer(const Duration(milliseconds: 200), () {
+      if (!mounted) return;
+      final index = mids.indexOf(mid);
+      if (index < 0) return;
+      final sc = dynamicsController.scrollController;
+      if (!sc.hasClients) return;
+      // 头像条目宽 70，留出左侧边距
+      final target = ((index - 1) * 70.0).clamp(
+        0.0,
+        sc.position.maxScrollExtent,
+      );
+      if ((sc.offset - target).abs() < 40) return;
+      unawaited(
+        sc.animateTo(
+          target,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    });
   }
 
   void toTopOrRefresh() => _currentFeed?.toTopOrRefresh();
@@ -176,26 +200,20 @@ class _DynUpPageViewState extends State<DynUpPageView>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Obx(() {
-      // UP 列表刚加载完成时同步一次分页数据
-      if (dynamicsController.loadingState.value is Success) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => syncUpList());
-      }
-      return dynPageView(
-        controller: pageController,
-        sensitivity: sensitivity,
-        itemCount: mids.length,
-        itemBuilder: (context, index) {
-          final mid = mids[index];
-          return DynUpFeedPage(key: ValueKey(mid), mid: mid);
-        },
-        onPageChanged: (index) {
-          feedBack();
-          final mid = mids.elementAtOrNull(index);
-          if (mid != null) dynamicsController.onSwipeToUp(mid);
-          _scrollUpBarTo(mid);
-        },
-      );
-    });
+    return dynPageView(
+      controller: pageController,
+      sensitivity: sensitivity,
+      itemCount: mids.length,
+      itemBuilder: (context, index) {
+        final mid = mids[index];
+        return DynUpFeedPage(key: ValueKey(mid), mid: mid);
+      },
+      onPageChanged: (index) {
+        feedBack();
+        final mid = mids.elementAtOrNull(index);
+        if (mid != null) dynamicsController.onSwipeToUp(mid);
+        _scrollUpBarTo(mid);
+      },
+    );
   }
 }
