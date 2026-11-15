@@ -1,5 +1,3 @@
-import 'dart:async' show Timer, unawaited;
-
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show dynPageView;
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/dynamics/up.dart';
@@ -34,9 +32,6 @@ class _DynUpPageViewState extends State<DynUpPageView>
   /// UP 列表刷新后重建分页（只在数据真的变化时触发，不再每帧轮询）
   late final Worker _loadingWorker;
 
-  /// 头像栏跟随滚动的防抖计时器，避免和手指抢滚动
-  Timer? _barScrollTimer;
-
   @override
   bool get wantKeepAlive => true;
 
@@ -52,11 +47,12 @@ class _DynUpPageViewState extends State<DynUpPageView>
       dynamicsController.loadingState,
       (_) => syncUpList(),
     );
+    pageController.addListener(_syncUpBarToPage);
   }
 
   @override
   void dispose() {
-    _barScrollTimer?.cancel();
+    pageController.removeListener(_syncUpBarToPage);
     _loadingWorker.dispose();
     // 同一时刻只存在一个分页容器，直接清空钩子；
     // 不要用 identical() 比较方法 tear-off，那个比较不可靠。
@@ -99,33 +95,21 @@ class _DynUpPageViewState extends State<DynUpPageView>
 
   void toTop() => _currentFeed?.animateToTop();
 
-  /// 横滑换 UP 后，把头像栏滚到该 UP 附近，保证高亮可见
+  /// 头像栏跟随横滑实时滚动
   ///
-  /// 用防抖延迟：PageView 的 onPageChanged 在手指还没抬起时就会触发，
-  /// 立刻改成动画会跟用户的手势抢滚动，等翻页稳定后再滚。
-  void _scrollUpBarTo(int? mid) {
-    if (mid == null) return;
-    _barScrollTimer?.cancel();
-    _barScrollTimer = Timer(const Duration(milliseconds: 200), () {
-      if (!mounted) return;
-      final index = mids.indexOf(mid);
-      if (index < 0) return;
-      final sc = dynamicsController.scrollController;
-      if (!sc.hasClients) return;
-      // 头像条目宽 70，留出左侧边距
-      final target = ((index - 1) * 70.0).clamp(
-        0.0,
-        sc.position.maxScrollExtent,
-      );
-      if ((sc.offset - target).abs() < 40) return;
-      unawaited(
-        sc.animateTo(
-          target,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        ),
-      );
-    });
+  /// 原来要等 onPageChanged 再 200ms 防抖、然后 220ms 动画，观感是
+  /// 「页面已经滑过去了，头像栏 0.4 秒后才追上来」。这里改成直接跟着
+  /// PageController 的连续位移走，手指停在半路头像栏也停在半路。
+  void _syncUpBarToPage() {
+    if (!mounted || !pageController.hasClients) return;
+    final page = pageController.page;
+    if (page == null) return;
+    final sc = dynamicsController.scrollController;
+    if (!sc.hasClients) return;
+    // 头像条目宽 70，第 0 项是「全部动态」，留出左侧一个身位
+    final target = ((page - 1) * 70.0).clamp(0.0, sc.position.maxScrollExtent);
+    if ((sc.offset - target).abs() < 1.5) return;
+    sc.jumpTo(target);
   }
 
   void toTopOrRefresh() => _currentFeed?.toTopOrRefresh();
@@ -186,12 +170,15 @@ class _DynUpPageViewState extends State<DynUpPageView>
     final target = _indexOf(mid);
     if (!pageController.hasClients) return;
     if (_currentIndex == target) return;
-    if ((target - _currentIndex).abs() > 3) {
+    final distance = (target - _currentIndex).abs();
+    if (distance > 5) {
+      // 跳太远做动画会一路刷过好几页，直接落位更干净
       pageController.jumpToPage(target);
     } else {
+      // 时长跟着距离走：相邻一位 240ms，跨几页也不显得拖沓
       pageController.animateToPage(
         target,
-        duration: const Duration(milliseconds: 250),
+        duration: Duration(milliseconds: (240 + distance * 45).clamp(240, 420)),
         curve: Curves.easeOutCubic,
       );
     }
@@ -212,7 +199,6 @@ class _DynUpPageViewState extends State<DynUpPageView>
         feedBack();
         final mid = mids.elementAtOrNull(index);
         if (mid != null) dynamicsController.onSwipeToUp(mid);
-        _scrollUpBarTo(mid);
       },
     );
   }

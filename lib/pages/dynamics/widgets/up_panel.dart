@@ -143,7 +143,9 @@ class _UpPanelState extends State<UpPanel> {
   Widget upItemBuild(ThemeData theme, UpItem item) {
     final currentMid = controller.currentMid;
     final isLive = item is LiveUserItem;
-    final isCurrent = isLive || currentMid == item.mid || currentMid == -1;
+    // 只有「全部动态」和自己那一位算选中；原来是 currentMid == -1 就全高亮，
+    // 导致头像栏一片全亮，看不出当前停在哪位 UP
+    final isCurrent = isLive || currentMid == item.mid;
 
     final isAll = item.mid == -1;
     void toMemberPage() => Get.toNamed('/member?mid=${item.mid}');
@@ -212,6 +214,7 @@ class _UpPanelState extends State<UpPanel> {
       height: 76,
       width: isTop ? 70 : null,
       child: InkWell(
+        borderRadius: BorderRadius.circular(12),
         onTap: () {
           feedBack();
           if (isLive) {
@@ -223,8 +226,10 @@ class _UpPanelState extends State<UpPanel> {
         // onDoubleTap: isLive ? () => _onSelect(data) : null,
         onLongPress: !isAll ? toMemberPage : null,
         onSecondaryTap: !isAll && !PlatformUtils.isMobile ? toMemberPage : null,
-        child: Opacity(
-          opacity: isCurrent ? 1 : 0.6,
+        child: AnimatedOpacity(
+          opacity: isCurrent ? 1 : 0.62,
+          duration: const Duration(milliseconds: 170),
+          curve: Curves.easeOutCubic,
           child: Column(
             spacing: 4,
             mainAxisSize: .min,
@@ -233,17 +238,23 @@ class _UpPanelState extends State<UpPanel> {
               avatar,
               Padding(
                 padding: const .symmetric(horizontal: 4),
-                child: Text(
-                  isTop ? '${item.uname}\n' : item.uname!,
-                  maxLines: 2,
-                  textAlign: .center,
-                  overflow: .ellipsis,
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 170),
+                  curve: Curves.easeOutCubic,
                   style: TextStyle(
+                    // 名字只在「确实是当前这位 UP」时高亮，
+                    // live 头像保持全亮但不染成主题色
                     color: currentMid == item.mid
                         ? theme.colorScheme.primary
                         : theme.colorScheme.outline,
                     height: 1.1,
                     fontSize: 12.5,
+                  ),
+                  child: Text(
+                    isTop ? '${item.uname}\n' : item.uname!,
+                    maxLines: 2,
+                    textAlign: .center,
+                    overflow: .ellipsis,
                   ),
                 ),
               ),
