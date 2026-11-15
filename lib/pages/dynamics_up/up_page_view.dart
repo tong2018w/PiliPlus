@@ -102,12 +102,17 @@ class _DynUpPageViewState extends State<DynUpPageView>
   /// PageController 的连续位移走，手指停在半路头像栏也停在半路。
   void _syncUpBarToPage() {
     if (!mounted || !pageController.hasClients) return;
+    // PageController.page 带 assert，布局完成前读取会直接断言失败
+    if (!pageController.position.hasContentDimensions) return;
     final page = pageController.page;
     if (page == null) return;
     final sc = dynamicsController.scrollController;
     if (!sc.hasClients) return;
+    // maxScrollExtent 同样要等布局完成才有效，否则 null 检查会炸
+    final scPos = sc.position;
+    if (!scPos.hasContentDimensions) return;
     // 头像条目宽 70，第 0 项是「全部动态」，留出左侧一个身位
-    final target = ((page - 1) * 70.0).clamp(0.0, sc.position.maxScrollExtent);
+    final target = ((page - 1) * 70.0).clamp(0.0, scPos.maxScrollExtent);
     if ((sc.offset - target).abs() < 1.5) return;
     sc.jumpTo(target);
   }
@@ -120,7 +125,10 @@ class _DynUpPageViewState extends State<DynUpPageView>
   }
 
   int get _currentIndex {
-    final page = pageController.hasClients ? pageController.page : null;
+    final page = pageController.hasClients &&
+            pageController.position.hasContentDimensions
+        ? pageController.page
+        : null;
     return (page ?? pageController.initialPage.toDouble()).round();
   }
 
