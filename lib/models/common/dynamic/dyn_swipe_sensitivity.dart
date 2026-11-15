@@ -19,15 +19,19 @@ enum DynSwipeSensitivity implements EnumWithLabel {
   const DynSwipeSensitivity(this.label);
 
   /// 判定横向滑动的角度比：|dx| > |dy| * angleRatio
+  ///
+  /// 灵敏档原本取 2，斜着滑列表时容易被判成横滑，
+  /// 提到 2.5 后既保留跟手，又不会跟竖向滚动打架。
   double get angleRatio => switch (this) {
-    .loose => 2,
-    .standard || .strict => 3,
+    .loose => 2.5,
+    .standard => 3,
+    .strict => 4,
   };
 
   /// 相对系统 touchSlop 的额外像素
   double get extraSlop => switch (this) {
-    .loose => 0,
-    .standard => 6,
-    .strict => 18,
+    .loose => 2,
+    .standard => 8,
+    .strict => 20,
   };
 }

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recognizer.dart';
 import 'package:PiliPlus/models/common/dynamic/dyn_swipe_sensitivity.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
@@ -33,6 +35,16 @@ Widget tabBarView({
   children: children,
 );
 
+/// 动态页横向翻页的弹簧
+///
+/// 刚度 700（≈26.5 rad/s），阻尼按临界阻尼给：
+/// 吸附到位从 ~0.30s 缩到 ~0.22s，且不会有过冲抖动。
+final SpringDescription dynPageSpring = SpringDescription(
+  mass: 1,
+  stiffness: 700,
+  damping: 2 * math.sqrt(700),
+);
+
 /// 与 [tabBarView] 一致的横向分页容器，用于逐 UP 浏览
 ///
 /// 用 builder 懒加载：只有可见页会创建，避免一次发起几十个请求。
@@ -45,13 +57,28 @@ Widget dynPageView({
   ScrollPhysics physics = tabBarScrollPhysics,
 }) => PageView.builder(
   controller: controller,
-  physics: PageScrollPhysics().applyTo(physics),
+  physics: _DynPageScrollPhysics(parent: physics),
   onPageChanged: onPageChanged,
+  // 让相邻页提前构建（PageView 里等价于 cacheExtent 一屏）：
+  // 手指按下的瞬间就有一页垫着，横滑不会再等首帧构建
+  allowImplicitScrolling: true,
   horizontalDragGestureRecognizer: () =>
       dynamicHorizontalDragRecognizer(sensitivity),
   itemCount: itemCount,
   itemBuilder: itemBuilder,
 );
+
+/// 翻页用 [PageScrollPhysics]，但松手后的吸附动画换成 [dynPageSpring]
+class _DynPageScrollPhysics extends PageScrollPhysics {
+  const _DynPageScrollPhysics({super.parent});
+
+  @override
+  _DynPageScrollPhysics applyTo(ScrollPhysics? ancestor) =>
+      _DynPageScrollPhysics(parent: buildParent(ancestor));
+
+  @override
+  SpringDescription get spring => dynPageSpring;
+}
 
 SpringDescription kSpringDescription = _customSpringDescription();
 

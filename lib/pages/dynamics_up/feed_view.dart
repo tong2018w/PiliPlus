@@ -1,3 +1,5 @@
+import 'dart:async' show Timer;
+
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -31,9 +33,28 @@ class _DynUpFeedPageState extends State<DynUpFeedPage>
     tag: _tag,
   );
 
+  /// 延迟销毁表：横滑离开页面后先留一会儿
+  ///
+  /// PageView 只保留当前页和正在动画的那一页，来回横滑时旧页面会被销毁。
+  /// 之前是立刻 Get.delete，滑回去就得重新请求一遍，列表还会跳回顶部。
+  /// 这里给 8 秒宽限期：来回滑的窗口内沿用原来的 controller 和滚动位置。
+  static final Map<String, Timer> _pendingDispose = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _pendingDispose.remove(_tag)?.cancel();
+  }
+
   @override
   void dispose() {
-    Get.delete<DynUpFeedController>(tag: _tag, force: true);
+    _pendingDispose.remove(_tag)?.cancel();
+    _pendingDispose[_tag] = Timer(const Duration(seconds: 8), () {
+      _pendingDispose.remove(_tag);
+      if (Get.isRegistered<DynUpFeedController>(tag: _tag)) {
+        Get.delete<DynUpFeedController>(tag: _tag, force: true);
+      }
+    });
     super.dispose();
   }
 
@@ -51,19 +72,35 @@ class _DynUpFeedPageState extends State<DynUpFeedPage>
       onRefresh: onRefresh,
       // 官方风格：指示器更贴近顶部，下拉一点点就会触发刷新
       displacement: refreshStyle == .official ? 12.0 : null,
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        controller: controller.scrollController,
-        slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.only(bottom: 100),
-            sliver: buildPage(
-              Obx(() => _buildBody(controller.loadingState.value)),
-            ),
+      child: NotificationListener<ScrollNotification>(
+        // 离底部还有 800px 就提前加载，不要等贴到底再顿一下
+        onNotification: _onScroll,
+        child: CustomScrollView(
+          // 显式指定父级，Android / iOS 的边界行为保持一致
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: ClampingScrollPhysics(),
           ),
-        ],
+          controller: controller.scrollController,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.only(bottom: 100),
+              sliver: buildPage(
+                Obx(() => _buildBody(controller.loadingState.value)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  /// 滚动到接近底部时预取下一页
+  bool _onScroll(ScrollNotification notification) {
+    if (notification.metrics.axis != .vertical) return false;
+    if (notification.metrics.extentAfter < 800) {
+      controller.onLoadMore();
+    }
+    return false;
   }
 
   Widget _buildBody(LoadingState<List<DynamicItemModel>?> loadingState) {
@@ -94,9 +131,6 @@ class _DynUpFeedPageState extends State<DynUpFeedPage>
   }
 
   Widget _itemBuilder(List<DynamicItemModel> list, int index) {
-    if (index == list.length - 1) {
-      controller.onLoadMore();
-    }
     final item = list[index];
     return DynamicPanel(
       item: item,
