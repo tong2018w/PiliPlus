@@ -115,6 +115,15 @@ class LocalNotifyService {
     _timer = null;
   }
 
+  /// 回到前台时立刻补一次检测。
+  ///
+  /// Android 会在 App 进后台后挂起 Flutter 的 Timer，轮询实际停摆；
+  /// 用户切回来时补一次，至少不会「回来还看不到刚才的提醒」。
+  Future<void> checkNow() async {
+    if (!_canNotify) return;
+    await _pollOnce();
+  }
+
   Future<void> _pollOnce({bool initial = false}) async {
     if (_polling) return;
     _polling = true;
