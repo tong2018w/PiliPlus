@@ -123,13 +123,6 @@ class _UpPanelState extends State<UpPanel> {
               UpItem(face: '', uname: '全部动态', mid: -1),
             ),
           ),
-        ),        SliverToBoxAdapter(
-          child: Obx(
-            () => upItemBuild(
-              theme,
-              UpItem(face: '', uname: '全部动态', mid: -1),
-            ),
-          ),
         ),
         SliverToBoxAdapter(
           child: Obx(
@@ -151,7 +144,8 @@ class _UpPanelState extends State<UpPanel> {
               return Obx(() => upItemBuild(theme, ordered[index]));
             },
           ),
-        if (isTop) const SliverToBoxAdapter(child: SizedBox(width: 8)),
+        // 右侧留出发布按钮的宽度，保证最后一个头像能完整滑到按钮左边
+        if (isTop) const SliverToBoxAdapter(child: SizedBox(width: 76)),
         if (!isTop) const SliverToBoxAdapter(child: SizedBox(height: 200)),
       ],
     );

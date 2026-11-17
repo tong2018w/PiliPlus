@@ -121,11 +121,17 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
     };
   }
 
-  /// 吸顶的 UP 头像栏：右侧固定发布按钮，其余横向滚动
+  /// 吸顶的 UP 头像栏：发布按钮悬浮固定在最右，头像栏铺满整行横向滚动。
+  ///
+  /// 之前用 Row(Expanded(头像栏) + 按钮)，按钮占了 70px 独立宽度，
+  /// 把头像栏挤窄、最后一个 UP 被压在按钮边上只露半个。
+  /// 改成 Stack：头像栏铺满、右侧留 70px padding，按钮叠在最右，
+  /// 这样按钮固定不动、和头像同一栏，头像滑动也碰不到它。
   Widget _upBar(ColorScheme colorScheme) {
-    return Row(
+    return Stack(
+      alignment: Alignment.centerRight,
       children: [
-        Expanded(
+        Positioned.fill(
           child: NotificationListener<ScrollEndNotification>(
             onNotification: (notification) {
               final metrics = notification.metrics;
@@ -136,6 +142,22 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
             },
             child: Obx(
               () => _buildUpPanel(_dynamicsController.loadingState.value),
+            ),
+          ),
+        ),
+        // 右侧渐变遮罩，让头像滑到按钮下面时有个柔和过渡
+        IgnorePointer(
+          child: Container(
+            width: 76,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  colorScheme.surface.withValues(alpha: 0),
+                  colorScheme.surface,
+                ],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
             ),
           ),
         ),

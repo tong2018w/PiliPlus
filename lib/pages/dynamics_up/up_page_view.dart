@@ -97,24 +97,40 @@ class _DynUpPageViewState extends State<DynUpPageView>
 
   /// 头像栏跟随横滑实时滚动
   ///
-  /// 原来要等 onPageChanged 再 200ms 防抖、然后 220ms 动画，观感是
-  /// 「页面已经滑过去了，头像栏 0.4 秒后才追上来」。这里改成直接跟着
-  /// PageController 的连续位移走，手指停在半路头像栏也停在半路。
+  /// 之前有两处导致「动效看不见」：
+  /// 1. target 用 (page-1)*70 做偏移 —— 那是给已删除的 Live 区域留的位置。
+  ///    现在头像栏第 0 项就是「全部动态」，对应 page=0，偏移应为 page*70。
+  ///    偏移错了，头像栏跟着滑时高亮和实际页面对不上，看着像没动。
+  /// 2. 一直用 jumpTo 硬跳，没有过渡观感。
+  /// 现在手指拖动/jump 时用 jumpTo 保证跟手；松手后 page 是整数、
+  /// 差值较大时用短 animateTo 补一个可见的滑动动画。
   void _syncUpBarToPage() {
     if (!mounted || !pageController.hasClients) return;
-    // PageController.page 带 assert，布局完成前读取会直接断言失败
     if (!pageController.position.hasContentDimensions) return;
     final page = pageController.page;
     if (page == null) return;
     final sc = dynamicsController.scrollController;
     if (!sc.hasClients) return;
-    // maxScrollExtent 同样要等布局完成才有效，否则 null 检查会炸
     final scPos = sc.position;
     if (!scPos.hasContentDimensions) return;
-    // 头像条目宽 70，第 0 项是「全部动态」，留出左侧一个身位
-    final target = ((page - 1) * 70.0).clamp(0.0, scPos.maxScrollExtent);
-    if ((sc.offset - target).abs() < 1.5) return;
-    sc.jumpTo(target);
+
+    const itemWidth = 70.0;
+    final target = (page * itemWidth).clamp(0.0, scPos.maxScrollExtent);
+    final delta = (sc.offset - target).abs();
+    if (delta < 1.0) return;
+
+    final isSettling = (page - page.round()).abs() < 0.01;
+    if (isSettling && delta > itemWidth * 0.4) {
+      // 松手归位、且差得较多：给一个可见的短动画
+      sc.animateTo(
+        target,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      // 手指拖动中：瞬间跟随，保证跟手不卡顿
+      sc.jumpTo(target);
+    }
   }
 
   void toTopOrRefresh() => _currentFeed?.toTopOrRefresh();
