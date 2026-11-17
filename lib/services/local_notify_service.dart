@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:PiliPlus/grpc/dyn.dart';
 import 'package:PiliPlus/http/dynamics.dart';
@@ -64,14 +65,14 @@ class LocalNotifyService {
 
   /// 请求通知权限（Android 13+），返回是否授予
   Future<bool> requestPermission() async {
-    if (!kIsWeb && GetPlatform.isAndroid) {
+    if (!kIsWeb && Platform.isAndroid) {
       final granted = await _plugin
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
           ?.requestNotificationsPermission();
       return granted ?? false;
     }
-    if (GetPlatform.isIOS) {
+    if (Platform.isIOS) {
       final granted = await _plugin
           .resolvePlatformSpecificImplementation<
               IOSFlutterLocalNotificationsPlugin>()

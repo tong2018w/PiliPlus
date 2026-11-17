@@ -4,7 +4,6 @@ import 'package:PiliPlus/models/dynamics/up.dart';
 import 'package:PiliPlus/pages/dynamics/controller.dart';
 import 'package:PiliPlus/pages/dynamics_up/feed_controller.dart';
 import 'package:PiliPlus/pages/dynamics_up/feed_view.dart';
-import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:get/get.dart';
@@ -158,7 +157,6 @@ class _DynUpPageViewState extends State<DynUpPageView>
     final seen = <int>{-1};
     final newMids = <int>[
       -1,
-      if (Accounts.main.isLogin) Accounts.main.mid,
       for (final item in ordered)
         if (seen.add(item.mid)) item.mid,
     ];
