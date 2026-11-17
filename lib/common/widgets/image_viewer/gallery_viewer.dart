@@ -36,13 +36,13 @@ import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/max_screen_size.dart';
+import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:cached_network_image_ce/cached_network_image.dart';
 import 'package:flutter/gestures.dart' show LongPressGestureRecognizer;
-import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart' hide Image;
 import 'package:media_kit/media_kit.dart';
@@ -541,7 +541,8 @@ class _GalleryViewerState extends State<GalleryViewer>
   void _onLongPress() {
     final item = widget.sources[_currIndex.value];
     if (item.sourceType == .fileImage) return;
-    HapticFeedback.mediumImpact();
+    // 同上：走后受控的 feedBack，避免关掉开关还震
+    feedBack();
     showDialog(
       context: context,
       builder: (context) => SimpleDialog(

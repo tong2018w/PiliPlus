@@ -30,10 +30,10 @@ import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
+import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
-import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:get/get_core/src/get_main.dart';
 import 'package:get/get_navigation/src/extension_navigation.dart';
 import 'package:material_ui/material_ui.dart';
@@ -144,7 +144,9 @@ class ImageGridView extends StatelessWidget {
   static bool enableImgMenu = Pref.enableImgMenu;
 
   void _showMenu(BuildContext context, int index, Offset offset) {
-    HapticFeedback.mediumImpact();
+    // 统一走 feedBack（受「震动反馈」开关控制 + 120ms 节流），
+    // 原来这里无条件 mediumImpact，用户关掉震动开关也照震
+    feedBack();
     final item = picArr[index];
     showMenu(
       context: context,

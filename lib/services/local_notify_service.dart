@@ -136,7 +136,7 @@ class LocalNotifyService {
       if (Pref.enableDynNotif) await _checkDynamic(initial: initial);
       if (Pref.enableLiveNotif) await _checkLive(initial: initial);
     } catch (e) {
-      if (kDebugMode) debugPrint('通知轮询错误: $e');
+      debugPrint('本地通知轮询错误: $e');
     } finally {
       _polling = false;
     }
@@ -185,6 +185,7 @@ class LocalNotifyService {
     onDynCount?.call(count);
     final prev = _lastDynCount;
     _lastDynCount = count;
+    debugPrint('动态未读: $prev -> $count (initial=$initial)');
     if (initial || prev == null) return; // 首次只建基线
     if (count > prev) {
       await _show(
