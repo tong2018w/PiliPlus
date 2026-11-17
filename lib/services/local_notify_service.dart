@@ -3,6 +3,8 @@ import 'dart:io' show Platform;
 
 import 'package:PiliPlus/grpc/dyn.dart';
 import 'package:PiliPlus/http/dynamics.dart';
+import 'package:PiliPlus/http/loading_state.dart';
+import 'package:PiliPlus/http/msg.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -30,9 +32,12 @@ class LocalNotifyService {
   /// 上次正在直播的 uid → 名字，用于判断「新开播」
   final Map<int, String> _lastLive = {};
 
+  /// 上次的消息未读总数（私信/@/回复/点赞/系统）
+  int? _lastMsgCount;
+
   /// 是否有通知权限
   bool get _canNotify =>
-      Pref.enableDynNotif || Pref.enableLiveNotif;
+      Pref.enableMsgNotif || Pref.enableDynNotif || Pref.enableLiveNotif;
 
   Future<void> init() async {
     if (_inited) return;
@@ -114,12 +119,48 @@ class LocalNotifyService {
     if (_polling) return;
     _polling = true;
     try {
+      if (Pref.enableMsgNotif) await _checkMsg(initial: initial);
       if (Pref.enableDynNotif) await _checkDynamic(initial: initial);
       if (Pref.enableLiveNotif) await _checkLive(initial: initial);
     } catch (e) {
       if (kDebugMode) debugPrint('通知轮询错误: $e');
     } finally {
       _polling = false;
+    }
+  }
+
+  /// 消息未读（私信 / @ / 回复 / 点赞 / 系统）增加时发通知
+  ///
+  /// 这是「来消息及时通知」的主体 —— 之前只做了动态红点和开播，
+  /// 私信/回复/@ 完全没提醒，所以用户觉得「有未读但不提醒」。
+  Future<void> _checkMsg({required bool initial}) async {
+    var total = 0;
+    // 私信
+    final single = await MsgHttp.msgUnread();
+    if (single case Success(:final response)) {
+      total += response.followUnread +
+          response.unfollowUnread +
+          response.bizMsgFollowUnread +
+          response.bizMsgUnfollowUnread +
+          response.unfollowPushMsg +
+          response.customUnread;
+    }
+    // @ / 回复 / 点赞 / 系统
+    final feed = await MsgHttp.msgFeedUnread();
+    if (feed case Success(:final response)) {
+      total += response.at + response.reply + response.like + response.sysMsg;
+    }
+
+    final prev = _lastMsgCount;
+    _lastMsgCount = total;
+    if (initial || prev == null) return; // 首次只建基线
+    if (total > prev) {
+      await _show(
+        id: 1000,
+        title: '新消息',
+        body: '有 ${total - prev} 条新的未读消息',
+        payload: 'msg',
+      );
     }
   }
 

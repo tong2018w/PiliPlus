@@ -75,6 +75,7 @@ abstract final class SettingBoxKey {
       previewQuality = 'previewQuality',
       checkDynamic = 'checkDynamic',
       dynamicPeriod = 'dynamicPeriod',
+      enableMsgNotif = 'enableMsgNotif',
       enableDynNotif = 'enableDynNotif',
       enableLiveNotif = 'enableLiveNotif',
       notifPollInterval = 'notifPollInterval',

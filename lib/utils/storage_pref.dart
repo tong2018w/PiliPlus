@@ -384,6 +384,10 @@ abstract final class Pref {
   static bool get checkDynamic =>
       _setting.get(SettingBoxKey.checkDynamic, defaultValue: true);
 
+  /// 消息未读（私信/@/回复）本地通知开关
+  static bool get enableMsgNotif =>
+      _setting.get(SettingBoxKey.enableMsgNotif, defaultValue: false);
+
   /// 动态更新本地通知开关
   static bool get enableDynNotif =>
       _setting.get(SettingBoxKey.enableDynNotif, defaultValue: false);

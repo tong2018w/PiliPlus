@@ -80,9 +80,14 @@ class MainController extends GetxController
 
     setNavBarConfig();
 
-    // 动态/开播本地通知：按设置启动轮询（未开启时内部直接跳过）
-    if (PlatformUtils.isMobile && accountService.isLogin.value) {
-      LocalNotifyService.instance.syncPolling();
+    // 消息/动态/开播本地通知：按设置启动轮询。
+    // 原来这里还要求 accountService.isLogin.value 为 true，
+    // 但 onInit 时账号信息可能还没加载完 → 永远不启动。
+    // 改成交给 service 内部判断，并延迟一拍等账号就绪。
+    if (PlatformUtils.isMobile) {
+      Future.delayed(const Duration(seconds: 3), () {
+        LocalNotifyService.instance.syncPolling();
+      });
     }
 
     controller = mainTabBarView
