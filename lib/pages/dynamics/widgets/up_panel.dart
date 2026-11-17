@@ -162,7 +162,9 @@ class _UpPanelState extends State<UpPanel> {
     final isLive = item is LiveUserItem;
     // 只有「全部动态」和自己那一位算选中；原来是 currentMid == -1 就全高亮，
     // 导致头像栏一片全亮，看不出当前停在哪位 UP
-    final isCurrent = isLive || currentMid == item.mid;
+    // 未读 UP 也保持全亮，别让未读小圆点跟着变半透明看不清
+    final hasUnread = item.hasUpdate ?? false;
+    final isCurrent = isLive || hasUnread || currentMid == item.mid;
 
     final isAll = item.mid == -1;
     void toMemberPage() => Get.toNamed('/member?mid=${item.mid}');
@@ -224,7 +226,13 @@ class _UpPanelState extends State<UpPanel> {
             ],
           ),
         );
-      } else if (item.hasUpdate ?? false) {
+      }
+
+      // 未读小圆点：和直播态互不排斥。
+      // 原来是 `else if (item.hasUpdate)`，直播头像走了 if(isLive) 分支后
+      // 就不会再叠加未读点 —— 直播 UP 的未读提示整个丢了。
+      // 拆成独立 if，直播环 + LIVE 标 + 未读点三者可共存。
+      if (item.hasUpdate ?? false) {
         avatar = Stack(
           clipBehavior: .none,
           children: [

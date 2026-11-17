@@ -29,16 +29,26 @@ class FollowUpModel {
     final seen = <int>{-1, selfMid};
     final result = <UpItem>[];
 
-    // 1. 正在直播的优先
-    final live = liveUsers?.items;
-    if (live != null) {
-      for (final item in live) {
-        if (seen.add(item.mid)) result.add(item);
+    // 直播 mid 集合，用于给同一 UP 合并「直播 + 未读」两个状态
+    final liveMap = <int, LiveUserItem>{
+      for (final item in liveUsers?.items ?? const <LiveUserItem>[])
+        item.mid: item,
+    };
+
+    // 1. 有未读动态的 UP 优先
+    //    之前把「直播」排在「未读」前面，直播 UP 一多，
+    //    未读的普通 UP 全被挤到后面看不见 —— 用户反馈的
+    //    「未读动态 up 不在前面显示」就是这个。
+    for (final item in upList ?? const <UpItem>[]) {
+      if (item.hasUpdate == true && seen.add(item.mid)) {
+        // 若这位同时也在直播，用 LiveUserItem 保留直播环 + LIVE 标
+        final liveItem = liveMap[item.mid];
+        result.add(liveItem ?? item);
       }
     }
-    // 2. 有未读动态的
-    for (final item in upList ?? const <UpItem>[]) {
-      if (item.hasUpdate == true && seen.add(item.mid)) result.add(item);
+    // 2. 正在直播但没未读的 UP
+    for (final entry in liveMap.entries) {
+      if (seen.add(entry.key)) result.add(entry.value);
     }
     // 3. 其余关注 UP（保持原顺序）
     for (final item in upList ?? const <UpItem>[]) {

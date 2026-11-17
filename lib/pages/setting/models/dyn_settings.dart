@@ -125,6 +125,24 @@ List<SettingsModel> get dynSettings => [
     defaultVal: true,
     onChanged: (val) => ItemModulesModel.showDynInteraction = val,
   ),
+
+  // ── 本地通知（非服务端推送）─────────────────────────
+  SwitchModel(
+    title: '动态更新时通知',
+    subtitle: '本地轮询检测关注动态增加时发系统通知（App 运行时有效，非服务端推送）',
+    leading: const Icon(Icons.notifications_active_outlined),
+    setKey: SettingBoxKey.enableDynNotif,
+    defaultVal: false,
+    needReboot: true,
+  ),
+  SwitchModel(
+    title: '关注的 UP 开播时通知',
+    subtitle: '本地轮询检测关注的 UP 开播时发系统通知',
+    leading: const Icon(Icons.live_tv_outlined),
+    setKey: SettingBoxKey.enableLiveNotif,
+    defaultVal: false,
+    needReboot: true,
+  ),
 ];
 
 void _showDynDialog(BuildContext context) {
