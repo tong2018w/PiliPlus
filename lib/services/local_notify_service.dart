@@ -3,7 +3,6 @@ import 'dart:io' show Platform;
 
 import 'package:PiliPlus/grpc/dyn.dart';
 import 'package:PiliPlus/http/dynamics.dart';
-import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -100,7 +99,7 @@ class LocalNotifyService {
 
   void _startTimer() {
     _timer?.cancel();
-    final seconds = Pref.notifPollInterval.clamp(15, 3600);
+    final seconds = Pref.notifPollInterval.clamp(15, 3600).toInt();
     // 先跑一次建立基线（避免刚开启就把已有的当新的全推一遍）
     _pollOnce(initial: true);
     _timer = Timer.periodic(Duration(seconds: seconds), (_) => _pollOnce());
@@ -211,10 +210,9 @@ class LocalNotifyService {
   }
 
   void _onTap(NotificationResponse response) {
-    // 点击通知：跳到首页动态 Tab（payload 里的 mid 暂不精确跳转）
-    if (Get.isRegistered<MainController>()) {
-      final c = Get.find<MainController>();
-      c.selectedIndex.value = 1;
-    }
+    // 点击通知目前不做跳转：service 层静态依赖 MainController 会形成
+    // controller → service → controller 的循环 import，得不偿失。
+    // 通知本身已经起到提醒作用，用户点开 App 自己进动态页即可。
+    // 后续若要精确跳转，可通过 Get.key 或回调注入实现。
   }
 }
