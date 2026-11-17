@@ -5,7 +5,6 @@ import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/models/common/dynamic/up_panel_position.dart';
 import 'package:PiliPlus/models/dynamics/up.dart';
 import 'package:PiliPlus/pages/dynamics/controller.dart';
-import 'package:PiliPlus/pages/live_follow/view.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
@@ -13,43 +12,6 @@ import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
-
-/// Live 入口的小呼吸点：有直播时缓慢脉动，提示可以点进去
-class _LivePulse extends StatefulWidget {
-  const _LivePulse();
-
-  @override
-  State<_LivePulse> createState() => _LivePulseState();
-}
-
-class _LivePulseState extends State<_LivePulse>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1600),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: Tween(begin: 0.35, end: 1.0).animate(_c),
-      child: Container(
-        width: 7,
-        height: 7,
-        decoration: BoxDecoration(
-          shape: .circle,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
-    );
-  }
-}
 
 /// 直播头像外圈的渐变呼吸环
 class _LiveRing extends StatefulWidget {
@@ -141,89 +103,27 @@ class _UpPanelState extends State<UpPanel> {
   late final controller = widget.dynamicsController;
   late final isTop = controller.upPanelPosition == UpPanelPosition.top;
 
-  void toFollowPage() => Get.to(const LiveFollowPage());
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final upData = widget.upData;
-    final upList = upData.upList;
-    final liveList = upData.liveUsers?.items;
+    // 统一用模型层的排序：直播 → 未读 → 其余；「全部动态」「我」单独置顶
+    final ordered = upData.orderedUpList;
     return CustomScrollView(
       scrollDirection: isTop ? .horizontal : .vertical,
       physics: const AlwaysScrollableScrollPhysics(),
       controller: controller.scrollController,
       slivers: [
+        // 去掉原 Live(x) 入口区域：直播 UP 现在直接混在关注列表里
+        // （头像带呼吸环 + LIVE 标），不再单独占一块、也不再插在「全部动态」前。
         SliverToBoxAdapter(
-          child: InkWell(
-            onTap: () => setState(() {
-              controller.showLiveUp = !controller.showLiveUp;
-            }),
-            onLongPress: toFollowPage,
-            onSecondaryTap: PlatformUtils.isMobile ? null : toFollowPage,
-            child: Container(
-              alignment: .center,
-              height: isTop ? 76 : 60,
-              // 原来 Live(0) 也占一大块还带箭头，挤得第一个头像没地方。
-              // 没直播时收成紧凑纯文字入口，有直播时才带呼吸圆点和箭头
-              padding: isTop ? const .only(left: 8, right: 2) : null,
-              child: Text.rich(
-                textAlign: .center,
-                style: TextStyle(
-                  fontSize: (upData.liveUsers?.count ?? 0) > 0 ? 13 : 11.5,
-                  color: theme.colorScheme.primary,
-                ),
-                TextSpan(
-                  children: [
-                    if ((upData.liveUsers?.count ?? 0) > 0) ...[
-                      const WidgetSpan(
-                        alignment: PlaceholderAlignment.middle,
-                        child: _LivePulse(),
-                      ),
-                      const TextSpan(text: ' '),
-                    ],
-                    TextSpan(
-                      text: (upData.liveUsers?.count ?? 0) > 0
-                          ? 'Live(${upData.liveUsers!.count})'
-                          : 'Live',
-                    ),
-                    if (!isTop) ...[
-                      const TextSpan(text: '\n'),
-                      WidgetSpan(
-                        alignment: .middle,
-                        child: Icon(
-                          controller.showLiveUp
-                              ? Icons.expand_less
-                              : Icons.expand_more,
-                          size: 12,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ] else if ((upData.liveUsers?.count ?? 0) > 0)
-                      WidgetSpan(
-                        alignment: .middle,
-                        child: Icon(
-                          controller.showLiveUp
-                              ? Icons.keyboard_arrow_right
-                              : Icons.keyboard_arrow_left,
-                          color: theme.colorScheme.primary,
-                          size: 14,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+          child: Obx(
+            () => upItemBuild(
+              theme,
+              UpItem(face: '', uname: '全部动态', mid: -1),
             ),
           ),
-        ),
-        if (controller.showLiveUp && liveList != null && liveList.isNotEmpty)
-          SliverList.builder(
-            itemCount: liveList.length,
-            itemBuilder: (context, index) {
-              return upItemBuild(theme, liveList[index]);
-            },
-          ),
-        SliverToBoxAdapter(
+        ),        SliverToBoxAdapter(
           child: Obx(
             () => upItemBuild(
               theme,
@@ -243,12 +143,12 @@ class _UpPanelState extends State<UpPanel> {
             ),
           ),
         ),
-        if (upList != null && upList.isNotEmpty)
+        if (ordered.isNotEmpty)
           SliverList.builder(
-            itemCount: upList.length,
+            itemCount: ordered.length,
             itemBuilder: (context, index) {
               // 逐 UP 横向分页滑动时，高亮跟随当前 UP
-              return Obx(() => upItemBuild(theme, upList[index]));
+              return Obx(() => upItemBuild(theme, ordered[index]));
             },
           ),
         if (isTop) const SliverToBoxAdapter(child: SizedBox(width: 8)),

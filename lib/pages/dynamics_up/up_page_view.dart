@@ -135,14 +135,16 @@ class _DynUpPageViewState extends State<DynUpPageView>
   /// 关注 UP 列表更新后重建分页，并尽量停在原来那位 UP 上
   void syncUpList() {
     if (!mounted) return;
-    final upList = dynamicsController.loadingState.value.dataOrNull?.upList;
+    final model = dynamicsController.loadingState.value.dataOrNull;
+    // 与头像栏共用同一顺序：直播/未读优先。头像栏点是第几项，
+    // 分页就必须对应同一个 mid，否则排序后会跳错页。
+    final ordered = model?.orderedUpList ?? const <UpItem>[];
     final seen = <int>{-1};
     final newMids = <int>[
       -1,
       if (Accounts.main.isLogin) Accounts.main.mid,
-      if (upList != null)
-        for (final item in upList)
-          if (item is! LiveUserItem && seen.add(item.mid)) item.mid,
+      for (final item in ordered)
+        if (seen.add(item.mid)) item.mid,
     ];
     if (newMids.length == mids.length) {
       var same = true;

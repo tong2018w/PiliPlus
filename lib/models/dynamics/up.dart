@@ -1,4 +1,5 @@
 import 'package:PiliPlus/models_new/follow/list.dart';
+import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/parse_int.dart';
 
 class FollowUpModel {
@@ -13,6 +14,37 @@ class FollowUpModel {
     } else {
       upList = newList;
     }
+  }
+
+  /// 顶部头像栏 / 横向分页共用的「展示顺序」。
+  ///
+  /// 顺序：正在直播的 UP → 有未读动态的 UP → 其余关注 UP。
+  /// 直播列表(live_users)和动态列表(up_list)里可能有同一个 mid，
+  /// 这里按 mid 去重，并优先保留 LiveUserItem（这样头像能带上直播环/LIVE 标）。
+  /// 「全部动态」(-1) 和「我」由头像栏/分页单独置顶，不在这里，
+  /// 从而保证直播 UP 不会排到「全部动态」前面。
+  List<UpItem> get orderedUpList {
+    // -1(全部动态) 和 我 由头像栏/分页单独置顶，这里排除，避免重复出现
+    final selfMid = Accounts.main.mid;
+    final seen = <int>{-1, selfMid};
+    final result = <UpItem>[];
+
+    // 1. 正在直播的优先
+    final live = liveUsers?.items;
+    if (live != null) {
+      for (final item in live) {
+        if (seen.add(item.mid)) result.add(item);
+      }
+    }
+    // 2. 有未读动态的
+    for (final item in upList ?? const <UpItem>[]) {
+      if (item.hasUpdate == true && seen.add(item.mid)) result.add(item);
+    }
+    // 3. 其余关注 UP（保持原顺序）
+    for (final item in upList ?? const <UpItem>[]) {
+      if (seen.add(item.mid)) result.add(item);
+    }
+    return result;
   }
 
   factory FollowUpModel.fromJson(Map<String, dynamic> json) {

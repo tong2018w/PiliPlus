@@ -34,12 +34,14 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
   @override
   bool get wantKeepAlive => true;
 
-  /// 发布按钮：与旁边的 UP 头像项做成同构结构 ——
-  /// 38px 圆形浅色底 + 加号，下面一行「发布」文字，整体占宽和头像一致（70）。
-  /// 原来是个悬空的小加号，和旁边有头像有名字的一列放一起很突兀。
+  /// 发布按钮：和旁边头像项严格同构。
+  ///
+  /// 之前是 38px「淡蓝实心圆 + 加号 + 发布」，在一排照片头像里像一坨色块，
+  /// 很跳。改成 38px 空心描边圆（和头像同尺寸、同圆形），浅色描边 + 加号，
+  /// 视觉重量和未选中头像相当；占宽 70 与头像列完全一致，不再突兀。
   Widget _createDynamicBtn(ColorScheme colorScheme, {bool isRight = true}) =>
       SizedBox(
-        width: 62,
+        width: 70,
         height: _upBarHeight,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
@@ -54,12 +56,15 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
                 height: 38,
                 decoration: BoxDecoration(
                   shape: .circle,
-                  color: colorScheme.secondaryContainer,
+                  border: Border.all(
+                    color: colorScheme.outline.withValues(alpha: 0.5),
+                    width: 1.4,
+                  ),
                 ),
                 child: Icon(
                   Icons.add,
                   size: 20,
-                  color: colorScheme.onSecondaryContainer,
+                  color: colorScheme.outline,
                 ),
               ),
               Text(
