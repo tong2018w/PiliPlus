@@ -36,10 +36,10 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
 
   /// 发布按钮：固定在头像栏最左、「全部动态」之前。
   ///
-  /// 和 UP 头像项完全同构 —— 38px 圆形 + 下方 12.5px 名字基线：
-  ///   · 圆形用主题色的柔和浅底 + 主题色加号，看起来是个「可点的功能位」
-  ///   · 不用灰色描边：描边在照片头像旁边显得像禁用态/占位框
-  ///   · 占宽 70，与头像列逐像素对齐，名字与头像名字同一行
+  /// 形状用正圆 38×38 —— 和 UP 头像完全同形同尺寸，最贴合这一栏。
+  /// 底色中灰（outline 62% 叠加，白底上约 #B5B5BA）+ 白色加号：
+  /// 灰底白号有明确对比、看起来是「可点的主操作」，又不会比头像抢眼。
+  /// 下方「发布」12.5px，与头像名字同一基线；占宽 70 与头像项一致。
   Widget _createDynamicBtn(ColorScheme colorScheme, {bool isRight = true}) =>
       SizedBox(
         width: 70,
@@ -57,12 +57,12 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
                 height: 38,
                 decoration: BoxDecoration(
                   shape: .circle,
-                  color: colorScheme.primary.withValues(alpha: 0.12),
+                  color: colorScheme.outline.withValues(alpha: 0.62),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.add_rounded,
-                  size: 24,
-                  color: colorScheme.primary,
+                  size: 22,
+                  color: Colors.white,
                 ),
               ),
               Text(
