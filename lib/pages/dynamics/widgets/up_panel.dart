@@ -144,8 +144,8 @@ class _UpPanelState extends State<UpPanel> {
               return Obx(() => upItemBuild(theme, ordered[index]));
             },
           ),
-        // 右侧留出发布按钮的宽度，保证最后一个头像能完整滑到按钮左边
-        if (isTop) const SliverToBoxAdapter(child: SizedBox(width: 76)),
+        // 发布按钮已移到滚动区左侧（见 _upBar），这里只需一点收尾间距
+        if (isTop) const SliverToBoxAdapter(child: SizedBox(width: 8)),
         if (!isTop) const SliverToBoxAdapter(child: SizedBox(height: 200)),
       ],
     );

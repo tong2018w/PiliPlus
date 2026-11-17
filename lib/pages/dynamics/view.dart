@@ -34,11 +34,12 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
   @override
   bool get wantKeepAlive => true;
 
-  /// 发布按钮：和旁边头像项严格同构。
+  /// 发布按钮：固定在头像栏最左、「全部动态」之前。
   ///
-  /// 之前是 38px「淡蓝实心圆 + 加号 + 发布」，在一排照片头像里像一坨色块，
-  /// 很跳。改成 38px 空心描边圆（和头像同尺寸、同圆形），浅色描边 + 加号，
-  /// 视觉重量和未选中头像相当；占宽 70 与头像列完全一致，不再突兀。
+  /// 和 UP 头像项完全同构 —— 38px 圆形 + 下方 12.5px 名字基线：
+  ///   · 圆形用主题色的柔和浅底 + 主题色加号，看起来是个「可点的功能位」
+  ///   · 不用灰色描边：描边在照片头像旁边显得像禁用态/占位框
+  ///   · 占宽 70，与头像列逐像素对齐，名字与头像名字同一行
   Widget _createDynamicBtn(ColorScheme colorScheme, {bool isRight = true}) =>
       SizedBox(
         width: 70,
@@ -56,15 +57,12 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
                 height: 38,
                 decoration: BoxDecoration(
                   shape: .circle,
-                  border: Border.all(
-                    color: colorScheme.outline.withValues(alpha: 0.5),
-                    width: 1.4,
-                  ),
+                  color: colorScheme.primary.withValues(alpha: 0.12),
                 ),
                 child: Icon(
-                  Icons.add,
-                  size: 20,
-                  color: colorScheme.outline,
+                  Icons.add_rounded,
+                  size: 24,
+                  color: colorScheme.primary,
                 ),
               ),
               Text(
@@ -121,17 +119,16 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
     };
   }
 
-  /// 吸顶的 UP 头像栏：发布按钮悬浮固定在最右，头像栏铺满整行横向滚动。
+  /// 吸顶的 UP 头像栏。
   ///
-  /// 之前用 Row(Expanded(头像栏) + 按钮)，按钮占了 70px 独立宽度，
-  /// 把头像栏挤窄、最后一个 UP 被压在按钮边上只露半个。
-  /// 改成 Stack：头像栏铺满、右侧留 70px padding，按钮叠在最右，
-  /// 这样按钮固定不动、和头像同一栏，头像滑动也碰不到它。
+  /// 发布按钮固定在整栏最左侧、「全部动态」之前，头像栏从它右边开始滚动。
+  /// 之前放最右用 Stack 悬浮，会盖住最后一个 UP（截图中「笨笨的韭菜」被遮），
+  /// 改成左侧固定位后任何头像都不会被压住。
   Widget _upBar(ColorScheme colorScheme) {
-    return Stack(
-      alignment: Alignment.centerRight,
+    return Row(
       children: [
-        Positioned.fill(
+        _createDynamicBtn(colorScheme),
+        Expanded(
           child: NotificationListener<ScrollEndNotification>(
             onNotification: (notification) {
               final metrics = notification.metrics;
@@ -145,23 +142,6 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
             ),
           ),
         ),
-        // 右侧渐变遮罩，让头像滑到按钮下面时有个柔和过渡
-        IgnorePointer(
-          child: Container(
-            width: 76,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  colorScheme.surface.withValues(alpha: 0),
-                  colorScheme.surface,
-                ],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-            ),
-          ),
-        ),
-        _createDynamicBtn(colorScheme),
       ],
     );
   }
