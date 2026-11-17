@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:PiliPlus/common/dial_prefix.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
@@ -139,8 +138,11 @@ class LoginPageController extends GetxController
         challenge: geeChallenge,
         token: captchaData.token,
       );
-      if (Platform.isIOS && canRefreshRegistration) {
-        // Only SMS verification supports a new registration from preCapture.
+      // 原版这里限定 Platform.isIOS，Android 完全不做 gt 有效性预检。
+      // 但风控发码拿到的 gt 常常是已失效/不匹配的配置（gettype.php 返回
+      // error_34），WebView 里极验就会白屏/加载失败 —— 这正是账号登录
+      // 验证手机号失败的 root cause。Android 同样需要预检+刷新整组注册信息。
+      if (canRefreshRegistration) {
         final resolved = await resolveLoginCaptcha(
           session,
           isUnavailable: LoginHttp.isGeetestConfigUnavailable,
@@ -312,6 +314,52 @@ class LoginPageController extends GetxController
 
         TextEditingController textFieldController = TextEditingController();
         String captchaKey = '';
+
+        // 风控手机号验证：发送短信验证码
+        //
+        // direct=true  不带极验参数直接发（风控短信通道通常只要 tmp_code）；
+        // direct=false 带已经验证通过的极验参数发（极验回退路径用）。
+        // 返回 true 表示短信已发送成功；返回 false 表示服务端要求先做极验。
+        Future<bool> sendRiskSms({required bool direct}) async {
+          final tmpCode = currentUri.queryParameters['tmp_token']!;
+          final res = await LoginHttp.safeCenterSmsCode(
+            tmpCode: tmpCode,
+            geeChallenge: direct ? null : captchaData.geetest?.challenge,
+            geeSeccode: direct ? null : captchaData.seccode,
+            geeValidate: direct ? null : captchaData.validate,
+            recaptchaToken: direct ? null : captchaData.token,
+            refererUrl: url,
+          );
+          if (res['status'] == true) {
+            SmartDialog.showToast('短信验证码已发送，请查收');
+            captchaKey = res['data']['captcha_key'] ?? '';
+            return true;
+          }
+          if (direct) {
+            // 直连失败：只有服务端明确要求人机验证才回退极验。
+            // -105 / -400 之类是 B站「需要验证」的常见码；
+            // 其它错误（频率限制、手机号问题）直接提示，不再无谓拉极验。
+            final msg = (res['msg'] ?? '').toString();
+            final code = res['code'];
+            final needCaptcha = code == -105 ||
+                msg.contains('captcha') ||
+                msg.contains('极验') ||
+                msg.contains('risk');
+            if (!needCaptcha) {
+              SmartDialog.showToast(
+                '发送短信验证码失败：${res['code']} $msg',
+              );
+              return true; // 已给出明确错误，不再回退极验
+            }
+            return false; // 交回调用方走极验回退
+          }
+          SmartDialog.showToast(
+            '发送短信验证码失败，请尝试其它登录方式\n'
+            '(${res['code']}) ${res['msg']}',
+          );
+          return true;
+        }
+
         showDialog(
           context: Get.context!,
           builder: (context) => AlertDialog(
@@ -351,12 +399,21 @@ class LoginPageController extends GetxController
               TextButton(
                 child: const Text("发送验证码"),
                 onPressed: () async {
+                  // 账号登录风控后的手机号验证，原版强制先过极验 WebView
+                  // 才肯发短信。但极验在当前环境经常加载失败，结果短信根本
+                  // 发不出去（用户截图就是卡在这一步）。
+                  // safeCenterSmsCode 的极验参数都是可选的，风控短信通道
+                  // 只要 tmp_code 就能发。所以改成「直连优先」：
+                  // 先不带极验直接发，服务端明确要求极验时才回退验证码流程。
+                  final sent = await sendRiskSms(direct: true);
+                  if (sent) return;
+                  // 直连被服务端要求验证 → 回退到极验（带 gt 预检/刷新）
                   final preCaptureRes = await LoginHttp.preCapture();
                   if (!preCaptureRes['status'] ||
                       preCaptureRes['data'] == null) {
                     SmartDialog.showToast(
                       "获取验证码失败，请尝试其它登录方式\n"
-                      "(${preCaptureRes['code']}) ${preCaptureRes['msg']} ${preCaptureRes['data']}",
+                      "(${preCaptureRes['code']}) ${preCaptureRes['msg']}",
                     );
                     return;
                   }
@@ -365,36 +422,14 @@ class LoginPageController extends GetxController
                   captchaData.token = preCaptureRes['data']['recaptcha_token'];
                   if (!isGeeArgumentValid(geeGt, geeChallenge)) {
                     SmartDialog.showToast(
-                      "获取极验参数为空，请尝试其它登录方式\n"
-                      "(${preCaptureRes['code']}) ${preCaptureRes['msg']} ${preCaptureRes['data']}",
+                      "获取极验参数为空，请尝试其它登录方式",
                     );
                     return;
                   }
-
                   getCaptcha(
                     geeGt,
                     geeChallenge,
-                    () async {
-                      final safeCenterSendSmsCodeRes =
-                          await LoginHttp.safeCenterSmsCode(
-                            tmpCode: currentUri.queryParameters['tmp_token']!,
-                            geeChallenge: captchaData.geetest?.challenge,
-                            geeSeccode: captchaData.seccode,
-                            geeValidate: captchaData.validate,
-                            recaptchaToken: captchaData.token,
-                            refererUrl: url,
-                          );
-                      if (!safeCenterSendSmsCodeRes['status']) {
-                        SmartDialog.showToast(
-                          "发送短信验证码失败，请尝试其它登录方式\n"
-                          "(${safeCenterSendSmsCodeRes['code']}) ${safeCenterSendSmsCodeRes['msg']}",
-                        );
-                        return;
-                      }
-                      SmartDialog.showToast("短信验证码已发送，请查收");
-                      captchaKey =
-                          safeCenterSendSmsCodeRes['data']['captcha_key'];
-                    },
+                    () async => sendRiskSms(direct: false),
                     canRefreshRegistration: true,
                   );
                 },
