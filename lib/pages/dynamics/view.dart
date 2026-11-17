@@ -65,8 +65,15 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
                   color: Colors.white,
                 ),
               ),
+              // 和头像名字完全同构：头像名字在 isTop 下是 '${uname}\n'
+              // (maxLines:2)，占两行高度。这里若只放一行，「发布」的 Column
+              // 内容比头像项矮约 14px，居中后圆会往下掉一截 ——
+              // 就是「发布按钮偏下、没和头像上方齐平」的原因。
               Text(
-                '发布',
+                '发布\n',
+                maxLines: 2,
+                textAlign: .center,
+                overflow: .ellipsis,
                 style: TextStyle(
                   fontSize: 12.5,
                   height: 1.1,
