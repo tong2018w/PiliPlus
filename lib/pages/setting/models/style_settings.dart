@@ -189,35 +189,30 @@ List<SettingsModel> get styleSettings => [
   ),
   SwitchModel(
     title: '动态页启用瀑布流',
-    subtitle: '关闭会显示为单列',
+    subtitle: '关闭会显示为单列；UP 主栏模式下固定单列（为保证内容完整显示）',
     leading: const Icon(Icons.view_array_outlined),
     setKey: SettingBoxKey.dynamicsWaterfallFlow,
     defaultVal: Pref.horizontalScreen,
     needReboot: true,
   ),
-  PopupModel(
-    title: '动态页UP主显示位置',
-    leading: const Icon(Icons.person_outlined),
-    value: () => Pref.upPanelPosition,
-    items: UpPanelPosition.values,
-    onSelected: (value, setState) {
-      GStorage.setting
-          .put(SettingBoxKey.upPanelPosition, value.index)
-          .whenComplete(setState);
-      SmartDialog.showToast('重启生效');
-    },
-  ),
+  // UP 主栏模式下头像栏恒为顶部横栏，这个位置设置无效，只在关闭主栏时显示
+  if (!Pref.dynUpOnlyMode)
+    PopupModel(
+      title: '动态页UP主显示位置',
+      leading: const Icon(Icons.person_outlined),
+      value: () => Pref.upPanelPosition,
+      items: UpPanelPosition.values,
+      onSelected: (value, setState) {
+        GStorage.setting
+            .put(SettingBoxKey.upPanelPosition, value.index)
+            .whenComplete(setState);
+        SmartDialog.showToast('重启生效');
+      },
+    ),
   const SwitchModel(
     title: '动态页显示所有已关注UP主',
     leading: Icon(Icons.people_alt_outlined),
     setKey: SettingBoxKey.dynamicsShowAllFollowedUp,
-    defaultVal: false,
-    needReboot: true,
-  ),
-  const SwitchModel(
-    title: '动态页展开正在直播UP列表',
-    leading: Icon(Icons.live_tv),
-    setKey: SettingBoxKey.expandDynLivePanel,
     defaultVal: false,
     needReboot: true,
   ),

@@ -34,7 +34,6 @@ class DynamicsController
   final _currentMid = (-1).obs;
   int get currentMid => _currentMid.value;
   set currentMid(int value) => _currentMid.value = value;
-  late bool showLiveUp = Pref.expandDynLivePanel;
   late final _showAllUp = Pref.dynamicsShowAllFollowedUp;
 
   final upOnlyMode = Pref.dynUpOnlyMode;
