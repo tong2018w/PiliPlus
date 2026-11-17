@@ -35,6 +35,10 @@ class LocalNotifyService {
   /// 上次的消息未读总数（私信/@/回复/点赞/系统）
   int? _lastMsgCount;
 
+  /// 动态未读数回调：由 MainController 注册，用它同步底部角标。
+  /// 通知轮询本来就把 dynRed 拉回来了，角标不必再单独轮询一遍。
+  void Function(int count)? onDynCount;
+
   /// 是否有通知权限
   bool get _canNotify =>
       Pref.enableMsgNotif || Pref.enableDynNotif || Pref.enableLiveNotif;
@@ -177,6 +181,8 @@ class LocalNotifyService {
   Future<void> _checkDynamic({required bool initial}) async {
     final count = await DynGrpc.dynRed();
     if (count == null) return;
+    // 顺手同步底部角标，避免和「检查未读动态」各轮询一次
+    onDynCount?.call(count);
     final prev = _lastDynCount;
     _lastDynCount = count;
     if (initial || prev == null) return; // 首次只建基线
