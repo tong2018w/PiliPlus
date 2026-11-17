@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/models/common/dynamic/up_panel_position.dart';
@@ -11,6 +13,115 @@ import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
+
+/// Live 入口的小呼吸点：有直播时缓慢脉动，提示可以点进去
+class _LivePulse extends StatefulWidget {
+  const _LivePulse();
+
+  @override
+  State<_LivePulse> createState() => _LivePulseState();
+}
+
+class _LivePulseState extends State<_LivePulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween(begin: 0.35, end: 1.0).animate(_c),
+      child: Container(
+        width: 7,
+        height: 7,
+        decoration: BoxDecoration(
+          shape: .circle,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+/// 直播头像外圈的渐变呼吸环
+class _LiveRing extends StatefulWidget {
+  const _LiveRing({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_LiveRing> createState() => _LiveRingState();
+}
+
+class _LiveRingState extends State<_LiveRing>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        final t = _c.value;
+        // 呼吸 + 缓慢旋转的粉紫渐变环，套在头像外圈
+        return CustomPaint(
+          foregroundPainter: _RingPainter(
+            progress: t,
+            color: color,
+          ),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  _RingPainter({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final r = Rect.fromCircle(
+      center: rect.center,
+      radius: rect.shortestSide / 2 + 2.5,
+    );
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..shader = SweepGradient(
+        startAngle: progress * math.pi * 2,
+        endAngle: progress * math.pi * 2 + math.pi * 1.6,
+        colors: [color.withValues(alpha: 0.15), color, color.withValues(alpha: 0.15)],
+      ).createShader(r);
+    canvas.drawArc(r, 0, math.pi * 2, false, paint);
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) => old.progress != progress;
+}
 
 class UpPanel extends StatefulWidget {
   const UpPanel({
@@ -53,17 +164,28 @@ class _UpPanelState extends State<UpPanel> {
             child: Container(
               alignment: .center,
               height: isTop ? 76 : 60,
-              padding: isTop ? const .only(left: 12, right: 6) : null,
+              // 原来 Live(0) 也占一大块还带箭头，挤得第一个头像没地方。
+              // 没直播时收成紧凑纯文字入口，有直播时才带呼吸圆点和箭头
+              padding: isTop ? const .only(left: 8, right: 2) : null,
               child: Text.rich(
                 textAlign: .center,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: (upData.liveUsers?.count ?? 0) > 0 ? 13 : 11.5,
                   color: theme.colorScheme.primary,
                 ),
                 TextSpan(
                   children: [
+                    if ((upData.liveUsers?.count ?? 0) > 0) ...[
+                      const WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: _LivePulse(),
+                      ),
+                      const TextSpan(text: ' '),
+                    ],
                     TextSpan(
-                      text: 'Live(${upData.liveUsers?.count ?? 0})',
+                      text: (upData.liveUsers?.count ?? 0) > 0
+                          ? 'Live(${upData.liveUsers!.count})'
+                          : 'Live',
                     ),
                     if (!isTop) ...[
                       const TextSpan(text: '\n'),
@@ -77,7 +199,7 @@ class _UpPanelState extends State<UpPanel> {
                           color: theme.colorScheme.primary,
                         ),
                       ),
-                    ] else
+                    ] else if ((upData.liveUsers?.count ?? 0) > 0)
                       WidgetSpan(
                         alignment: .middle,
                         child: Icon(
@@ -129,6 +251,7 @@ class _UpPanelState extends State<UpPanel> {
               return Obx(() => upItemBuild(theme, upList[index]));
             },
           ),
+        if (isTop) const SliverToBoxAdapter(child: SizedBox(width: 8)),
         if (!isTop) const SliverToBoxAdapter(child: SizedBox(height: 200)),
       ],
     );
@@ -176,21 +299,36 @@ class _UpPanelState extends State<UpPanel> {
         ),
       );
       if (isLive) {
-        avatar = Stack(
-          clipBehavior: .none,
-          children: [
-            avatar,
-            Positioned(
-              top: isLive && !isTop ? -5 : 0,
-              right: -6,
-              child: Badge(
-                label: const Text(' Live '),
-                textColor: theme.colorScheme.onSecondaryContainer,
-                backgroundColor: theme.colorScheme.secondaryContainer
-                    .withValues(alpha: 0.75),
+        // 直播头像：外圈渐变呼吸环 + 右下角小 LIVE 标
+        avatar = _LiveRing(
+          child: Stack(
+            clipBehavior: .none,
+            children: [
+              avatar,
+              Positioned(
+                bottom: -2,
+                right: -8,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const .symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      borderRadius: const .all(.circular(4)),
+                    ),
+                    child: const Text(
+                      'LIVE',
+                      style: TextStyle(
+                        fontSize: 8,
+                        height: 1.1,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       } else if (item.hasUpdate ?? false) {
         avatar = Stack(

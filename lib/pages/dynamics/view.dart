@@ -34,25 +34,44 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
   @override
   bool get wantKeepAlive => true;
 
-  /// 发布按钮：去掉原来的实心色块，改成和头像栏同一视觉层级的轻量图标，
-  /// 只保留 36 的点击热区，避免那个 34px 的彩色圆点在头像栏里过于扎眼
+  /// 发布按钮：与旁边的 UP 头像项做成同构结构 ——
+  /// 38px 圆形浅色底 + 加号，下面一行「发布」文字，整体占宽和头像一致（70）。
+  /// 原来是个悬空的小加号，和旁边有头像有名字的一列放一起很突兀。
   Widget _createDynamicBtn(ColorScheme colorScheme, {bool isRight = true}) =>
-      Padding(
-        padding: isRight ? const .only(right: 4) : const .only(left: 4),
-        child: IconButton(
-          tooltip: '发布动态',
-          style: ButtonStyle(
-            padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-            backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
-            minimumSize: const WidgetStatePropertyAll(Size.square(36)),
-            maximumSize: const WidgetStatePropertyAll(Size.square(36)),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            overlayColor: WidgetStatePropertyAll(
-              colorScheme.onSurface.withValues(alpha: 0.08),
-            ),
+      SizedBox(
+        width: 62,
+        height: _upBarHeight,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => CreateDynPanel.onCreateDyn(context),
+          child: Column(
+            spacing: 4,
+            mainAxisSize: .min,
+            mainAxisAlignment: .center,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  shape: .circle,
+                  color: colorScheme.secondaryContainer,
+                ),
+                child: Icon(
+                  Icons.add,
+                  size: 20,
+                  color: colorScheme.onSecondaryContainer,
+                ),
+              ),
+              Text(
+                '发布',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.1,
+                  color: colorScheme.outline,
+                ),
+              ),
+            ],
           ),
-          onPressed: () => CreateDynPanel.onCreateDyn(context),
-          icon: Icon(Icons.add, size: 20, color: colorScheme.onSurfaceVariant),
         ),
       );
 

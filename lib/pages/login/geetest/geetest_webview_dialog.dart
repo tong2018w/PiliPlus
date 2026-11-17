@@ -37,6 +37,11 @@ class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
   /// 加载超时时间：宁可提示重试，也不要让用户干瞪着空白页
   static const _loadTimeout = Duration(seconds: 15);
 
+  /// 极验对老 UA 会拒发完整校验脚本，用一个较新的 Android Chrome UA
+  static const _captchaUa =
+      'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
+
   Timer? _timer;
 
   /// 已经拿到结果或已关闭，超时就不再打扰
@@ -100,7 +105,7 @@ class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
     if (_error != null) return;
     _timer = Timer(_loadTimeout, () {
       if (!mounted || _finished) return;
-      setState(() => _error = '验证码加载超时，检查网络后重试，或改用扫码登录');
+      setState(() => _error = '验证码加载超时。检查网络重试，或登录页切换到扫码登录');
     });
   }
 
@@ -118,7 +123,7 @@ class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
     if (!mounted || _finished || _error != null) return;
     _timer?.cancel();
     // 极验脚本自己会先显示失败文案，这里同步给 Dart 侧兜底
-    setState(() => _error = '验证码加载失败，请重试或改用扫码登录');
+    setState(() => _error = '验证码加载失败。可重试，或登录页切换到扫码登录');
   }
 
   @override
@@ -133,8 +138,8 @@ class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
           height: 400,
           child: LinuxWebview(
             initialHtml: html,
-            userAgent: BrowserUa.mob,
-            incognito: true,
+            userAgent: _captchaUa,
+            incognito: false,
             onWebMessageReceived: (msg) {
               final msgStr = msg.toString();
               if (msgStr.startsWith("success:")) {
@@ -170,10 +175,12 @@ class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
             useHybridComposition: true,
             algorithmicDarkeningAllowed: false,
             useShouldOverrideUrlLoading: true,
-            userAgent: BrowserUa.mob,
+            userAgent: _captchaUa,
             mixedContentMode: .MIXED_CONTENT_ALWAYS_ALLOW,
 
-            incognito: true,
+            // incognito 会禁掉 cookie，极验靠 cookie 校验域名与会话，
+            // 开着它极验脚本能加载但校验一定失败 → 白屏/失败提示
+            incognito: false,
             allowFileAccess: false,
             allowsLinkPreview: false,
             allowContentAccess: false,

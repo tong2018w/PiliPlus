@@ -42,9 +42,12 @@ class DynamicPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (item.visible == false) {
-      return const SizedBox.shrink();
-    }
+    // 原来这里直接按 visible==false 把整条动态裁掉。
+    // B站「折叠动态」会把被折叠条目的 visible 标成 false，
+    // 刷新后重新拉到的数据仍带这个值，于是那条动态就凭空消失，
+    // 只有上滑让 fold 展开逻辑把它设回 true 才看得见 —— 用户反馈的
+    // 「上滑才显示、下滑刷新又消失」就是这个。
+    // 折叠已经由 moduleFold 自己处理了，这里不再二次隐藏。
     final theme = Theme.of(context);
     final authorWidget = AuthorPanel(
       item: item,

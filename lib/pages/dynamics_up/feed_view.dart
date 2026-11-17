@@ -7,7 +7,6 @@ import 'package:PiliPlus/models/dynamics/result.dart';
 import 'package:PiliPlus/pages/dynamics/widgets/dynamic_panel.dart';
 import 'package:PiliPlus/pages/dynamics_up/feed_controller.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
-import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/waterfall.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -103,12 +102,20 @@ class _DynUpFeedPageState extends State<DynUpFeedPage>
     return false;
   }
 
+  /// 个别动态上滑才显示、刷新又消失的第二个原因：
+  /// 瀑布流 (SliverMasonryGrid) 会把每张卡片按「估算高度」放进列里，
+  /// 卡片内部图片/视频异步加载后高度变化，若估算偏小，下面那张会被
+  /// 压到视口外，看起来就像「还没加载」。列表流没有这个问题。
+  /// 动态卡片本身已经是单列全宽，用瀑布流没有收益，这里强制用列表流，
+  /// 高度由内容自撑，不再出现裁剪。
+  bool get _useWaterfall => false;
+
   Widget _buildBody(LoadingState<List<DynamicItemModel>?> loadingState) {
     return switch (loadingState) {
       Loading() => dynSkeleton,
       Success(:final response) =>
         response != null && response.isNotEmpty
-            ? GlobalData().dynamicsWaterfallFlow
+            ? _useWaterfall
                   ? SliverMasonryGrid(
                       crossAxisSpacing: 4,
                       gridDelegate: dynGridDelegate,
