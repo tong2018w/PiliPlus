@@ -74,7 +74,7 @@ class LocalNotifyService {
     // 否则老用户装上新版仍是旧渠道（无震动）。
     final channel = AndroidNotificationChannel(
       _channelId,
-      '动态与开播提醒',
+      _channelName,
       description: '关注的 UP 发布动态或开播时的本地提醒',
       importance: Importance.high,
       playSound: true,
