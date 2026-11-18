@@ -25,7 +25,6 @@ import 'package:PiliPlus/utils/extension/context_ext.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
-import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
@@ -232,7 +231,8 @@ abstract final class PageUtils {
     bool isPush = false,
     bool viewComment = false,
   }) async {
-    feedBack();
+    // 点开动态详情属于页面跳转，不做震动反馈
+    // （原来这里 feedBack()，配合 InkWell 的 tap feedback 会变成两声）
 
     void push() {
       if (item.basic?.commentType == 12) {

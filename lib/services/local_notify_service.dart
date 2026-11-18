@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data' show Int64List;
 import 'dart:io' show Platform;
 
 import 'package:PiliPlus/grpc/dyn.dart';
@@ -22,6 +23,11 @@ class LocalNotifyService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
+  /// 通知渠道 id。
+  /// v2：加震动支持（渠道参数不可变，必须换新 id）
+  static const _channelId = 'piliplus_dyn_live_v2';
+  static const _channelName = '动态与开播提醒';
+
   Timer? _timer;
   bool _inited = false;
   bool _polling = false;
@@ -34,6 +40,11 @@ class LocalNotifyService {
 
   /// 上次的消息未读总数（私信/@/回复/点赞/系统）
   int? _lastMsgCount;
+
+  /// 已经通知过的动态未读数 / 消息未读数，用于防重。
+  /// dynRed 的返回值会小幅波动（5→4→5），只靠 count>prev 会反复弹同一条。
+  int? _notifiedDynCount;
+  int? _notifiedMsgCount;
 
   /// 动态未读数回调：由 MainController 注册，用它同步底部角标。
   /// 通知轮询本来就把 dynRed 拉回来了，角标不必再单独轮询一遍。
@@ -58,12 +69,19 @@ class LocalNotifyService {
     );
 
     // 创建通知渠道（Android 8+）
-    const channel = AndroidNotificationChannel(
-      'piliplus_dyn_live',
+    //
+    // 渠道参数创建后不可修改，所以加震动必须换新 id，
+    // 否则老用户装上新版仍是旧渠道（无震动）。
+    final channel = AndroidNotificationChannel(
+      _channelId,
       '动态与开播提醒',
       description: '关注的 UP 发布动态或开播时的本地提醒',
       importance: Importance.high,
       playSound: true,
+      // 通知栏消息震动（用户要求：通知时震动，而不是点开视频时震）
+      enableVibration: true,
+      vibrationPattern: Int64List.fromList([0, 300, 200, 300]),
+      enableLights: true,
     );
     await _plugin
         .resolvePlatformSpecificImplementation<
@@ -99,9 +117,9 @@ class LocalNotifyService {
     }
     final granted = await requestPermission();
     if (!granted) {
-      if (kDebugMode) debugPrint('通知权限未授予，不启动轮询');
-      stop();
-      return;
+      // Android 13 以下没有运行时通知权限，插件可能返回 null。
+      // 这种情况仍应启动轮询（否则低版本永远收不到通知）。
+      debugPrint('通知权限未授予或无法判定，仍尝试启动轮询');
     }
     _startTimer();
   }
@@ -119,22 +137,30 @@ class LocalNotifyService {
     _timer = null;
   }
 
-  /// 回到前台时立刻补一次检测。
+  /// 回到前台时只同步基线，不发通知。
   ///
-  /// Android 会在 App 进后台后挂起 Flutter 的 Timer，轮询实际停摆；
-  /// 用户切回来时补一次，至少不会「回来还看不到刚才的提醒」。
+  /// 原来这里会 _pollOnce() 真检测，结果后台期间积累的未读在用户
+  /// 点开任意页面（App 回前台）时一次性补发一堆通知 —— 用户看到的
+  /// 「点开视频冒出一串通知 + 两句震动」就是这个。
+  /// 现在改成只把基线刷成当前值，不发提醒：
+  /// 通知只由前台 Timer 或后续真实增量触发。
   Future<void> checkNow() async {
     if (!_canNotify) return;
-    await _pollOnce();
+    await _pollOnce(silent: true);
   }
 
-  Future<void> _pollOnce({bool initial = false}) async {
+  Future<void> _pollOnce({bool initial = false, bool silent = false}) async {
     if (_polling) return;
     _polling = true;
     try {
-      if (Pref.enableMsgNotif) await _checkMsg(initial: initial);
-      if (Pref.enableDynNotif) await _checkDynamic(initial: initial);
-      if (Pref.enableLiveNotif) await _checkLive(initial: initial);
+      // silent=true：只更新基线，不发任何通知
+      if (Pref.enableMsgNotif) await _checkMsg(initial: initial || silent);
+      if (Pref.enableDynNotif) {
+        await _checkDynamic(initial: initial || silent);
+      }
+      if (Pref.enableLiveNotif) {
+        await _checkLive(initial: initial || silent);
+      }
     } catch (e) {
       debugPrint('本地通知轮询错误: $e');
     } finally {
@@ -167,7 +193,8 @@ class LocalNotifyService {
     final prev = _lastMsgCount;
     _lastMsgCount = total;
     if (initial || prev == null) return; // 首次只建基线
-    if (total > prev) {
+    if (total > prev && total != _notifiedMsgCount) {
+      _notifiedMsgCount = total;
       await _show(
         id: 1000,
         title: '新消息',
@@ -187,7 +214,8 @@ class LocalNotifyService {
     _lastDynCount = count;
     debugPrint('动态未读: $prev -> $count (initial=$initial)');
     if (initial || prev == null) return; // 首次只建基线
-    if (count > prev) {
+    if (count > prev && count != _notifiedDynCount) {
+      _notifiedDynCount = count;
       await _show(
         id: 1001,
         title: '动态更新',
@@ -254,15 +282,18 @@ class LocalNotifyService {
     required String body,
     required String payload,
   }) async {
-    const androidDetails = AndroidNotificationDetails(
-      'piliplus_dyn_live',
-      '动态与开播提醒',
+    final androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
       channelDescription: '关注的 UP 发布动态或开播时的本地提醒',
       importance: Importance.high,
       priority: Priority.high,
       ticker: 'PiliPlus 提醒',
+      enableVibration: true,
+      vibrationPattern: Int64List.fromList([0, 300, 200, 300]),
+      playSound: true,
     );
-    const details = NotificationDetails(android: androidDetails);
+    final details = NotificationDetails(android: androidDetails);
     await _plugin.show(id, title, body, details, payload: payload);
   }
 

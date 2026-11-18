@@ -66,6 +66,9 @@ class DynamicPanel extends StatelessWidget {
     final child = Material(
       type: MaterialType.transparency,
       child: InkWell(
+        // 点开动态不震：InkWell 的 tap feedback 与 pushDynDetail 里的
+        // feedBack() 叠加会变成两声
+        enableFeedback: false,
         onTap:
             isDetail &&
                 !const {

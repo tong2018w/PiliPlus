@@ -125,7 +125,7 @@ List<SettingsModel> get dynSettings => [
     subtitle: '私信 / @ / 回复 / 点赞有未读时发系统通知（App 运行时轮询，非服务端推送）',
     leading: const Icon(Icons.mark_email_unread_outlined),
     setKey: SettingBoxKey.enableMsgNotif,
-    defaultVal: false,
+    defaultVal: true,
     onChanged: (val) => LocalNotifyService.instance.syncPolling(),
   ),
   SwitchModel(
@@ -133,7 +133,7 @@ List<SettingsModel> get dynSettings => [
     subtitle: '本地轮询检测关注动态增加时发系统通知（App 运行时有效，非服务端推送）',
     leading: const Icon(Icons.notifications_active_outlined),
     setKey: SettingBoxKey.enableDynNotif,
-    defaultVal: false,
+    defaultVal: true,
     onChanged: (val) => LocalNotifyService.instance.syncPolling(),
   ),
   SwitchModel(
@@ -141,7 +141,7 @@ List<SettingsModel> get dynSettings => [
     subtitle: '本地轮询检测关注的 UP 开播时发系统通知',
     leading: const Icon(Icons.live_tv_outlined),
     setKey: SettingBoxKey.enableLiveNotif,
-    defaultVal: false,
+    defaultVal: true,
     onChanged: (val) => LocalNotifyService.instance.syncPolling(),
   ),
 ];

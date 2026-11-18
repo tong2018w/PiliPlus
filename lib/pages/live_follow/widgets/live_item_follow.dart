@@ -23,6 +23,8 @@ class LiveCardVFollow extends StatelessWidget {
     );
     return Card(
       child: InkWell(
+        // 点进直播间不做 tap feedback，避免和页面切换叠加成震动
+        enableFeedback: false,
         onTap: () => PageUtils.toLiveRoom(liveItem.roomid),
         onLongPress: onLongPress,
         onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,

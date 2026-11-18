@@ -43,6 +43,9 @@ class VideoCardH extends StatelessWidget {
         clipBehavior: .none,
         children: [
           InkWell(
+            // 关掉 InkWell 自带的 tap feedback：
+            // 它和 App 的 feedBack() 叠加就是用户听到的「两声震动」
+            enableFeedback: false,
             onLongPress: onLongPress,
             onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
             onTap: onTap ?? () => pushVideoH(videoItem),

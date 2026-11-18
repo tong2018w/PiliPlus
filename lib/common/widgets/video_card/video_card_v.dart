@@ -91,6 +91,8 @@ class VideoCardV extends StatelessWidget {
       children: [
         Card(
           child: InkWell(
+            // 同上：避免 tap feedback 与 feedBack() 叠加成两声震动
+            enableFeedback: false,
             onTap: onPushDetail,
             onLongPress: onLongPress,
             onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
