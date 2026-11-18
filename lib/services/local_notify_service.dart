@@ -100,6 +100,29 @@ class LocalNotifyService {
         ?.createNotificationChannel(channel);
   }
 
+  /// 预创建「后台播放」媒体通知渠道（静音、低优先级）。
+  ///
+  /// 用户反馈：进入视频/直播间时，通知历史会多一条记录并伴随铃声震动。
+  /// 根因是 audio_service 的媒体通知渠道默认重要性偏高。这里在
+  /// AudioService.init 之前抢先建好静音渠道 —— 渠道参数创建后不可修改，
+  /// 所以音频服务端已把渠道 id 换成 audio_v2，强制系统重建。
+  /// 这样媒体通知只保留播放控制条，不再响铃/震动，也不走 heads-up。
+  static Future<void> ensureSilentAudioChannel() async {
+    const channel = AndroidNotificationChannel(
+      'com.example.piliplus.audio_v2',
+      'PiliPlus 播放控制',
+      description: '后台播放控制通知（静音，无震动）',
+      importance: Importance.low,
+      playSound: false,
+      enableVibration: false,
+      showBadge: false,
+    );
+    await FlutterLocalNotificationsPlugin()
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+  }
+
   /// 请求通知权限（Android 13+），返回是否授予
   Future<bool> requestPermission() async {
     if (!kIsWeb && Platform.isAndroid) {
