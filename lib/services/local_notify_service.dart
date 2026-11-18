@@ -32,8 +32,13 @@ class LocalNotifyService {
   bool _inited = false;
   bool _polling = false;
 
-  /// 上次看到的动态未读数，用于判断「增加」
-  int? _lastDynCount;
+  /// 上次看到的最新动态 id，用于判断「有新动态」。
+  ///
+  /// 原来用 DynGrpc.dynRed() 的红点计数判断，但第三方客户端拿到的
+  /// count 常年不变化（B站对第三方限流），导致文本/图片/视频动态
+  /// 全都不触发通知。改为直接拉动态列表，对比第一条的 id_str ——
+  /// 只要最新 id 变了就有新动态，覆盖所有类型。
+  Object? _lastDynId;
 
   /// 上次正在直播的 uid → 名字，用于判断「新开播」
   final Map<int, String> _lastLive = {};
@@ -41,13 +46,13 @@ class LocalNotifyService {
   /// 上次的消息未读总数（私信/@/回复/点赞/系统）
   int? _lastMsgCount;
 
-  /// 已经通知过的动态未读数 / 消息未读数，用于防重。
-  /// dynRed 的返回值会小幅波动（5→4→5），只靠 count>prev 会反复弹同一条。
-  int? _notifiedDynCount;
+  /// 已经通知过的动态 id / 消息未读数，用于防重。
+  /// 动态用最新 id 对比（不是 count），避免计数波动导致反复弹同一条。
+  Object? _notifiedDynId;
   int? _notifiedMsgCount;
 
   /// 动态未读数回调：由 MainController 注册，用它同步底部角标。
-  /// 通知轮询本来就把 dynRed 拉回来了，角标不必再单独轮询一遍。
+  /// 角标仍用 dynRed 语义；通知判断改用最新动态 id（见 _checkDynamic）。
   void Function(int count)? onDynCount;
 
   /// 是否有通知权限
@@ -204,22 +209,31 @@ class LocalNotifyService {
     }
   }
 
-  /// 动态未读增加时发通知
+  /// 有新动态时发通知（文本 / 图片 / 视频全覆盖）
+  ///
+  /// 直接拉动态列表对比最新 id，不再依赖 dynRed 红点计数。
   Future<void> _checkDynamic({required bool initial}) async {
-    final count = await DynGrpc.dynRed();
-    if (count == null) return;
-    // 顺手同步底部角标，避免和「检查未读动态」各轮询一次
-    onDynCount?.call(count);
-    final prev = _lastDynCount;
-    _lastDynCount = count;
-    debugPrint('动态未读: $prev -> $count (initial=$initial)');
+    // 角标仍用 dynRed（它是红点语义），仅同步显示，不用来判断通知
+    if (onDynCount != null) {
+      final redCount = await DynGrpc.dynRed();
+      if (redCount != null) onDynCount?.call(redCount);
+    }
+    final model = await DynamicsHttp.followDynamic();
+    final items = model.dataOrNull?.items;
+    if (items == null || items.isEmpty) return;
+    final latestId = items.first.idStr;
+    if (latestId == null) return;
+
+    final prev = _lastDynId;
+    _lastDynId = latestId;
+    debugPrint('动态最新 id: $prev -> $latestId (initial=$initial)');
     if (initial || prev == null) return; // 首次只建基线
-    if (count > prev && count != _notifiedDynCount) {
-      _notifiedDynCount = count;
+    if (latestId != prev && latestId != _notifiedDynId) {
+      _notifiedDynId = latestId;
       await _show(
         id: 1001,
         title: '动态更新',
-        body: '有 ${count - prev} 条新的关注动态',
+        body: '关注的 UP 发布了新动态',
         payload: 'dyn',
       );
     }
