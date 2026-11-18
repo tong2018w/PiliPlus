@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:typed_data' show Int64List;
 import 'dart:io' show Platform;
+import 'dart:typed_data' show Int64List;
 
 import 'package:PiliPlus/grpc/dyn.dart';
 import 'package:PiliPlus/http/dynamics.dart';
